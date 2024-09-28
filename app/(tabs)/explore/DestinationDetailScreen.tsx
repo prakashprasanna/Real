@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCart } from '@/hooks/useCart';
 import { AddToCartButton } from '@/app/components/AddToCartButton';
 import { MaterialIcons } from '@expo/vector-icons';
-
+import AddToCartModal from '@/app/components/AddToCartModal';
 
 // type DestinationDetailScreenProps = {
 //   route: { params: { destination: Destination } };
@@ -24,6 +24,9 @@ const { destination } = useLocalSearchParams();
 const destinationData = typeof destination === 'string' ? JSON.parse(destination) : destination;
 
 const [isFavorite, setIsFavorite] = useState(false);
+const [modalVisible, setModalVisible] = useState(false);
+const { addToCart, cart: cartItems } = useCart();
+
 useEffect(() => {
     checkFavoriteStatus();
   }, []);
@@ -62,6 +65,19 @@ useEffect(() => {
     });
   };
 
+  const handleAddToCart = () => {
+    addToCart(destinationData);
+    setModalVisible(true);
+  };
+
+  const handleCheckout = () => {
+    setModalVisible(false);
+    router.push({
+      pathname: '/PaymentScreen',
+      params: { destination: JSON.stringify(destinationData) }
+    });
+  };
+
   return (
     <>
     <StackHeader detail={'Detail'} />
@@ -79,17 +95,22 @@ useEffect(() => {
                 </TouchableOpacity>
             </View>
             <Text style={styles.description}>{destinationData.description}</Text>
-          {/* Add more details as needed */}
-          <View style={styles.cartView}>
-            <AddToCartButton item={destinationData} />
-            <TouchableOpacity onPress={handleBuy} style={styles.buyButton}>
-            <MaterialIcons name="payment" size={24} color="white" />
-            <Text style={styles.buyButtonText}>Buy Now</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.cartView}>
+              <AddToCartButton item={destinationData} onPress={handleAddToCart}/>
+              <TouchableOpacity onPress={handleBuy} style={styles.buyButton}>
+                <MaterialIcons name="payment" size={24} color="white" />
+                <Text style={styles.buyButtonText}>Buy Now</Text>
+              </TouchableOpacity>
+            </View>
         </View>
       </ScrollView>
     </View>
+    <AddToCartModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onCheckout={handleCheckout}
+        cartItems={cartItems}
+      />
     </>
   );
 }
@@ -154,5 +175,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  addToCartButton: {
+    backgroundColor: '#4CAF50',
+    padding: 10,
+    borderRadius: 5,
+    marginRight: 10,
   },
 });

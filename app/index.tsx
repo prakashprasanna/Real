@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { enableScreens } from 'react-native-screens';
+
+enableScreens();  // This optimizes memory usage by using native screens
+
 
 const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');

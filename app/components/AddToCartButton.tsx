@@ -6,14 +6,17 @@ import { AntDesign } from '@expo/vector-icons';
 
 interface AddToCartButtonProps {
   item: ShoppingItem;
+  onPress: () => void;
 }
 
-export const AddToCartButton: React.FC<AddToCartButtonProps> = ({ item }) => {
+export const AddToCartButton: React.FC<AddToCartButtonProps> = ({ item, onPress }) => {
   const { addToCart } = useCart();
 
   const handleAddToCart = () => {
     addToCart(item);
+    onPress();
   };
+
 
   return (
     <TouchableOpacity style={styles.button} onPress={handleAddToCart}>

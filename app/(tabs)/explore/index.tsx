@@ -14,6 +14,7 @@ export default function Explore() {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
 
+
   useEffect(() => {
     loadDestinations();
   }, []);
@@ -51,7 +52,7 @@ export default function Explore() {
 const styles = StyleSheet.create({
   container: {
     //flex: 1,
-    height: '50%',
+    height: '70%',
     paddingTop: 10,
     backgroundColor: '#f0f0f0',
   },
