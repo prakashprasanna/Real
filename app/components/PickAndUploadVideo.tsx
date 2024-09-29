@@ -266,8 +266,9 @@ const styles = StyleSheet.create({
       height: '100%',
     },
     placeholderContainer: {
-      width: '100%',
-      aspectRatio: 16 / 9,
+      width: '90%',
+      height:'80%',
+      //aspectRatio: 16 / 9,
       marginBottom: 20,
       borderRadius: 10,
       backgroundColor: '#e0e0e0',
