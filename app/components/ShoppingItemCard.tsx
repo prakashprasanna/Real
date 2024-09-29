@@ -13,7 +13,7 @@ export const ShoppingItemCard: React.FC<ShoppingItemCardProps> = ({ item }) => {
       <Image source={{ uri: item.image }} style={styles.image} />
       <Text style={styles.name}>{item.name}</Text>
       <Text style={styles.price}>${item.price.toFixed(2)}</Text>
-      <AddToCartButton item={item} />
+      <AddToCartButton item={item} onPress={() => {}} />
     </View>
   );
 };

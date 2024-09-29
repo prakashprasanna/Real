@@ -95,7 +95,7 @@ export default function DestinationList({
         keyExtractor={(item) => item.id}
         onEndReached={onLoadMore}
         onEndReachedThreshold={0.1}
-        ListFooterComponent={() => loading && <ActivityIndicator size="large" color="#0000ff" />}
+        ListFooterComponent={() => loading && <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20,alignContent:'center' }} />}
         contentContainerStyle={styles.listContent}
         snapToInterval={ITEM_WIDTH + 20}
         decelerationRate="fast"
@@ -106,7 +106,7 @@ export default function DestinationList({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    height: '40%',
     marginBottom: 10, 
   },
   carouselContainer: {

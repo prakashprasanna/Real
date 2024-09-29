@@ -1,3 +1,12 @@
+import { storage } from '../firebaseConfig'; // Adjust the import path as needed
+import { ref, listAll, getDownloadURL } from 'firebase/storage';
+
+export interface Video {
+  id: string;
+  name: string;
+  downloadURL: string;
+}
+
 export interface Destination {
     id: string;
     name: string;
@@ -17,4 +26,26 @@ export interface Destination {
         resolve(destinations);
       }, 1000); // Simulate network delay
     });
+  };
+
+  export const fetchVideos = async (): Promise<Video[]> => {
+    try {
+      const videosRef = ref(storage, 'videos');
+      const videosList = await listAll(videosRef);
+      
+      const videosPromises = videosList.items.map(async (item) => {
+        const downloadURL = await getDownloadURL(item);
+        return {
+          id: item.name,
+          name: item.name,
+          downloadURL: downloadURL,
+        };
+      });
+  
+      const videos = await Promise.all(videosPromises);
+      return videos;
+    } catch (error) {
+      console.error('Error fetching videos:', error);
+      throw error;
+    }
   };

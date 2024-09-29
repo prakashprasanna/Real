@@ -1,10 +1,22 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '@/hooks/useCart';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 
 export default function TabLayout() {
   const { cart } = useCart();
+  const router = useRouter();
+
+  const handleCartPress = () => {
+    // @ts-ignore: Object is possibly 'undefined'
+    router.push('/cart');
+  };
+
+  const handleExplorePress = () => {
+    // @ts-ignore: Object is possibly 'undefined'
+    router.push('/(tabs)/explore');
+
+  };
 
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
   return (
@@ -20,6 +32,9 @@ export default function TabLayout() {
         options={{
           title: 'Explore',
           tabBarIcon: ({ color }) => <Ionicons name="search" size={24} color={'#fff'} />,
+          tabBarButton: (props) => (
+            <TouchableOpacity {...props} onPress={handleExplorePress} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -30,6 +45,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="cart"
+        options={{
+          title: 'Add Video',
+          tabBarIcon: ({ color }) => <Ionicons name="videocam" size={24} color={'#fff'} />,
+          tabBarButton: (props) => (
+            <TouchableOpacity {...props} onPress={handleCartPress} />
+          ),
+        }}
+      />
+      {/* <Tabs.Screen
         name="cart"
         options={{
           title: 'Cart',
@@ -56,7 +81,7 @@ export default function TabLayout() {
             </View>
           ),
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="inbox"
         options={{
@@ -73,6 +98,8 @@ export default function TabLayout() {
       />
       <Tabs.Screen name="explore/DestinationDetailScreen" options={{ href: null }} />
       <Tabs.Screen name="PaymentScreen" options={{ href: null }} />
+      <Tabs.Screen name="explore/FullVideoScreen" options={{ href: null,headerShown: false }} />
+      <Tabs.Screen name="explore/SwipeableVideoFeedScreen" options={{ href: null,headerShown: false }} />
     </Tabs>
   );
 }

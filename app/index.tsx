@@ -3,20 +3,42 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { enableScreens } from 'react-native-screens';
+import { getAuth, signInWithEmailAndPassword, initializeAuth } from 'firebase/auth';
+import { initializeApp } from 'firebase/app';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
 enableScreens();  // This optimizes memory usage by using native screens
-
 
 const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
+  const auth = getAuth();
 
-  const handleLogin = () => {
-    // TODO: Implement actual authentication logic
-    console.log('Login attempt with:', email, password);
-    // Navigate to tabs after successful login
-    router.replace('/(tabs)/explore');
+  const handleLogin = async () => {
+    if(email === '' || password === '') {
+      Alert.alert('Login Failed', 'Please enter your email and password');
+      return;
+    }
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Signed in 
+      const user = userCredential.user;
+      console.log('User logged in:', user.uid);
+      // Navigate to tabs after successful login
+      router.replace('/(tabs)/explore');
+    } catch (error:any) {
+      const errorCode = error.code;
+      const errorMessage = error.message;
+      console.error('Login error:', errorCode, errorMessage);
+      Alert.alert('Login Failed', errorMessage);
+    }
+  };
+
+  const handleSignUp = () => {
+    // Navigate to the signup screen
+    router.push('/SignupScreen');
   };
 
   return (
@@ -53,6 +75,13 @@ const LoginScreen: React.FC = () => {
         <TouchableOpacity>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>
+
+        <View style={styles.signupContainer}>
+          <Text style={styles.signupText}>Don't have an account?</Text>
+          <TouchableOpacity onPress={handleSignUp}>
+            <Text style={styles.signupButton}>Sign up</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -102,6 +131,20 @@ const styles = StyleSheet.create({
     height: '50%', // Adjust size as needed
     marginBottom: 5,
     alignSelf: 'center',
+  },
+  signupContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  signupText: {
+    color: '#333',
+  },
+  signupButton: {
+    color: '#6bb2be',
+    fontWeight: 'bold',
+    marginLeft: 5,
   },
 });
 
