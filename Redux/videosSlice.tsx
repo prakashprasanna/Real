@@ -1,10 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-
-interface Video {
-  id: string;
-  name: string;
-  downloadURL: string;
-}
+import { Video } from '../api/destinationsApi';
 
 interface VideosState {
   allVideos: Video[];
@@ -26,8 +21,17 @@ const videosSlice = createSlice({
     setCurrentIndex: (state, action: PayloadAction<number>) => {
       state.currentIndex = action.payload;
     },
+    reorderVideos: (state, action: PayloadAction<number>) => {
+      const clickedIndex = action.payload;
+      const clickedVideo = state.allVideos[clickedIndex];
+      state.allVideos = [
+        clickedVideo,
+        ...state.allVideos.slice(0, clickedIndex),
+        ...state.allVideos.slice(clickedIndex + 1)
+      ];
+    },
   },
 });
 
-export const { setVideos, setCurrentIndex } = videosSlice.actions;
+export const { setVideos, setCurrentIndex, reorderVideos } = videosSlice.actions;
 export default videosSlice.reducer;

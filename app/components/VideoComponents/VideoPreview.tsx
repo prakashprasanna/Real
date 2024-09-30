@@ -1,27 +1,23 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
-import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { Video as VideoType } from '../../../api/destinationsApi';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../../Redux/store';
-import { setCurrentIndex } from '../../../Redux/videosSlice';
+import { setCurrentIndex, reorderVideos } from '../../../Redux/videosSlice';
 
 interface VideoPreviewProps {
   uri: string;
+  index: number;
 }
 
 const { width } = Dimensions.get('window');
 
-export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri }) => {
+export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
   const videoRef = useRef<Video>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const dispatch = useDispatch();
-  const { allVideos, currentIndex } = useSelector((state: RootState) => state.videos);
-  console.log("VIDEO PREVIEW ALL VIDEOS ", allVideos)
-
+  const { allVideos } = useSelector((state: RootState) => state.videos);
 
   useEffect(() => {
     const playVideo = async () => {
@@ -36,11 +32,18 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri }) => {
   }, []);
 
   const handlePress = () => {
+    // Reorder videos to put the clicked one first
+    dispatch(reorderVideos(index));
+    
+    // Set the current index to 0 (the first video, which is now the clicked one)
+    dispatch(setCurrentIndex(0));
+
+    // Navigate to the SwipeableVideoFeedScreen
     router.push({
       pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
       params: {
         videos: allVideos.map(video => video.downloadURL),
-        initialIndex: currentIndex,
+        initialIndex: 0,
       },
     });
   };

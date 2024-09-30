@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View, ScrollView, Text } from 'react-native';
 import { VideoPreview } from './VideoPreview';
 import { Video } from '../../../api/destinationsApi';
@@ -12,8 +12,10 @@ interface VideoListProps {
 export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRefresh }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
+  const [orderedVideos, setOrderedVideos] = useState<Video[]>(videos);
 
   useEffect(() => {
+    setOrderedVideos(videos);
     console.log("VideoList received new videos:", videos.length);
     videos.forEach((video, index) => {
       console.log(`Video ${index + 1}:`, video.id, video.downloadURL);
@@ -29,6 +31,16 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
     console.log("Refresh completed");
   };
 
+  const handleVideoPress = useCallback((video: Video) => {
+    // Reorder videos to put the clicked one first
+    const newOrderedVideos = [
+      video,
+      ...orderedVideos.filter(v => v.id !== video.id)
+    ];
+    setOrderedVideos(newOrderedVideos);
+    onVideoPress(video);
+  }, [orderedVideos, onVideoPress]);
+  
   return (
     <ScrollView
       contentContainerStyle={styles.scrollViewContent}
@@ -46,11 +58,10 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
       </Text>
       <FlatList
         data={videos}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <VideoPreview
             uri={item.downloadURL}
-            onPress={() => onVideoPress(item)}
-            allVideos={videos}
+            index={index}
           />
         )}
         keyExtractor={(item) => item.id}
