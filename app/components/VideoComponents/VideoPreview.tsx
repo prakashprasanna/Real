@@ -32,17 +32,29 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
   }, []);
 
   const handlePress = () => {
+    console.log('Video clicked:', index);
+    console.log('Current allVideos:', allVideos);
+
     // Reorder videos to put the clicked one first
     dispatch(reorderVideos(index));
     
     // Set the current index to 0 (the first video, which is now the clicked one)
     dispatch(setCurrentIndex(0));
 
+    // Get the updated allVideos after reordering
+    const updatedAllVideos = [
+      allVideos[index],
+      ...allVideos.slice(0, index),
+      ...allVideos.slice(index + 1)
+    ];
+
+    console.log('Reordered videos:', updatedAllVideos);
+
     // Navigate to the SwipeableVideoFeedScreen
     router.push({
       pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
       params: {
-        videos: allVideos.map(video => video.downloadURL),
+        videos: updatedAllVideos.map(video => video.downloadURL),
         initialIndex: 0,
       },
     });

@@ -1,37 +1,80 @@
+import React, { useCallback, useState, useEffect } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '@/hooks/useCart';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchVideos } from '@/api/destinationsApi';
+import { setVideos, setLoading } from '@/Redux/videosSlice';
+import { RootState } from '@/Redux/store';
+
+const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 export default function TabLayout() {
   const { cart } = useCart();
   const router = useRouter();
+  const dispatch = useDispatch();
+  const lastFetchTime = useSelector((state: RootState) => state.videos.lastFetchTime);
+  const videos = useSelector((state: RootState) => state.videos.allVideos);
+  const isLoading = useSelector((state: RootState) => state.videos.isLoading);
+
+  const fetchVideosIfNeeded = useCallback(async () => {
+    const now = Date.now();
+    if (!lastFetchTime || now - lastFetchTime > REFRESH_INTERVAL || videos.length === 0) {
+      dispatch(setLoading(true));
+      try {
+        const refreshedVideos = await fetchVideos();
+        if (refreshedVideos) {
+          dispatch(setVideos(refreshedVideos));
+        }
+      } catch (error) {
+        console.error('Failed to refresh videos:', error);
+      } finally {
+        dispatch(setLoading(false));
+      }
+    }
+  }, [dispatch, lastFetchTime, videos]);
+
+  useEffect(() => {
+    fetchVideosIfNeeded();
+  }, [fetchVideosIfNeeded]);
+
+  const handleExplorePress = useCallback(() => {
+    dispatch(setLoading(true)); // Set loading to true immediately
+    router.push('/(tabs)/explore');
+    // Use setTimeout to ensure this runs after navigation is complete
+    setTimeout(() => {
+      fetchVideosIfNeeded().then(() => {
+        dispatch(setLoading(false));
+      });
+    }, 0);
+  }, [dispatch, fetchVideosIfNeeded, router]);
 
   const handleCartPress = () => {
-    // @ts-ignore: Object is possibly 'undefined'
     router.push('/cart');
   };
 
-  const handleExplorePress = () => {
-    // @ts-ignore: Object is possibly 'undefined'
-    router.push('/(tabs)/explore');
-
-  };
-
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+
   return (
     <Tabs
-    screenOptions={{
-      tabBarStyle: { backgroundColor: '#6bb2be' }, // Change this color as needed
-      tabBarActiveTintColor: '#ffffff', // Color for active tab
-      tabBarInactiveTintColor: '#cccccc', // Color for inactive tabs
-    }}
+      screenOptions={{
+        tabBarStyle: { backgroundColor: '#6bb2be' },
+        tabBarActiveTintColor: '#ffffff',
+        tabBarInactiveTintColor: '#cccccc',
+      }}
     >
       <Tabs.Screen
         name="explore/index"
         options={{
           title: 'Explore',
-          tabBarIcon: ({ color }) => <Ionicons name="search" size={24} color={'#fff'} />,
+          tabBarIcon: ({ color }) => (
+            isLoading ? (
+              <ActivityIndicator color="#ffffff" size="small" />
+            ) : (
+              <Ionicons name="search" size={24} color={'#fff'} />
+            )
+          ),
           tabBarButton: (props) => (
             <TouchableOpacity {...props} onPress={handleExplorePress} />
           ),

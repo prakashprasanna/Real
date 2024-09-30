@@ -4,11 +4,15 @@ import { Video } from '../api/destinationsApi';
 interface VideosState {
   allVideos: Video[];
   currentIndex: number;
+  lastFetchTime: number | null;
+  isLoading: boolean;
 }
 
 const initialState: VideosState = {
   allVideos: [],
   currentIndex: 0,
+  lastFetchTime: null,
+  isLoading: false,
 };
 
 const videosSlice = createSlice({
@@ -17,6 +21,7 @@ const videosSlice = createSlice({
   reducers: {
     setVideos: (state, action: PayloadAction<Video[]>) => {
       state.allVideos = action.payload;
+      state.lastFetchTime = Date.now();
     },
     setCurrentIndex: (state, action: PayloadAction<number>) => {
       state.currentIndex = action.payload;
@@ -30,8 +35,11 @@ const videosSlice = createSlice({
         ...state.allVideos.slice(clickedIndex + 1)
       ];
     },
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.isLoading = action.payload;
+    },
   },
 });
 
-export const { setVideos, setCurrentIndex, reorderVideos } = videosSlice.actions;
+export const { setVideos, setCurrentIndex, reorderVideos, setLoading } = videosSlice.actions;
 export default videosSlice.reducer;
