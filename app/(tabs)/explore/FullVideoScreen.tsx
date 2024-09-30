@@ -10,9 +10,10 @@ interface FullVideoScreenProps {
   screen: 'Swipe' | null;
   isActive?: boolean;
   style?: ViewStyle;
+  onSwipe: () => void;  // New prop to handle swipe events
 }
 
-export default function FullVideoScreen({ uri, screen, isActive = true, style }: FullVideoScreenProps) {
+export default function FullVideoScreen({ uri, screen, isActive = true, style, onSwipe }: FullVideoScreenProps) {
   const videoRef = useRef<Video>(null);
   const isFocused = useIsFocused();
   const navigation = useNavigation();
@@ -41,11 +42,23 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style }:
     if (videoRef.current) {
       if (isActive && isFocused) {
         videoRef.current.playAsync();
+        videoRef.current.setIsMutedAsync(isMuted);
       } else {
         videoRef.current.pauseAsync();
+        videoRef.current.setIsMutedAsync(true);
       }
     }
-  }, [isActive, isFocused]);
+  }, [isActive, isFocused, isMuted]);
+
+  useEffect(() => {
+    // This effect will run when a swipe occurs
+    if (!isActive) {
+      setIsMuted(true);
+      if (videoRef.current) {
+        videoRef.current.setIsMutedAsync(true);
+      }
+    }
+  }, [isActive]);
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     setStatus(status);
@@ -68,10 +81,12 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style }:
   };
 
   const toggleMute = () => {
-    setIsMuted(!isMuted);
+    const newMuteState = !isMuted;
+    setIsMuted(newMuteState);
     if (videoRef.current) {
-      videoRef.current.setIsMutedAsync(!isMuted);
+      videoRef.current.setIsMutedAsync(newMuteState);
     }
+    onSwipe();  // Notify parent component about the mute change
   };
 
   if (error) {
