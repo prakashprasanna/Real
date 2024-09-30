@@ -60,6 +60,20 @@ export default function Explore() {
     });
   };
 
+  const handleRefresh = async () => {
+    console.log("Starting video refresh...");
+    try {
+      const refreshedVideos = await fetchVideos();
+      if (refreshedVideos) {
+        dispatch(setVideos(refreshedVideos));
+        setVideoss(refreshedVideos);
+        console.log('Videos refreshed:', refreshedVideos);
+      }
+    } catch (error) {
+      console.error('Failed to refresh videos:', error);
+    }
+  };
+
   return (
     <>
     <StackHeader detail={'Explore'} />
@@ -70,7 +84,10 @@ export default function Explore() {
         onLoadMore={loadDestinations}
         loading={loading}
       />
-      <VideoList videos={videoss} onVideoPress={handleVideoPress}  onRefresh={() => fetchVideos().then(() => {})}
+      <VideoList 
+        videos={videoss} 
+        onVideoPress={handleVideoPress}  
+        onRefresh={handleRefresh}
       />
     </View>
     </>
@@ -80,7 +97,6 @@ export default function Explore() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    //height: '100%',
     paddingTop: 10,
     backgroundColor: '#f0f0f0',
   },

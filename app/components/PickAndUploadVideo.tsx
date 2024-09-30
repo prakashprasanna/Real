@@ -16,6 +16,7 @@ export function PickAndUploadVideo() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isCompressing, setIsCompressing] = useState(false);
   const videoRef = useRef<Video>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const storage = getStorage();
   const firestore = getFirestore();
@@ -74,7 +75,6 @@ export function PickAndUploadVideo() {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           await saveVideoMetadata(downloadURL, filename);
           Alert.alert('Success', 'Video uploaded successfully');
-          setUploadProgress(0);
         }
       );
     } catch (error) {
@@ -116,6 +116,7 @@ export function PickAndUploadVideo() {
     console.log('Video URI:', videoUri);
   
     try {
+      setIsUploading(true);
       // Send the video to the server for compression
       console.log('Sending video to server for compression...');
       const serverUrl = `${API_URL}/compress-video`;
@@ -183,19 +184,21 @@ export function PickAndUploadVideo() {
       console.log('Cleaning up local compressed video file...');
       await FileSystem.deleteAsync(compressedVideoUri);
       console.log('Local compressed video file deleted');
-  
+
     } catch (error) {
-      console.error('Error in handleUpload:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
+        console.error('Error in handleUpload:', error);
+        if (error instanceof Error) {
+          console.error('Error message:', error.message);
+          console.error('Error stack:', error.stack);
+        }
+        Alert.alert('Upload Error', `Failed to upload video: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        setIsCompressing(false);
+        setIsUploading(false);
+        setVideo(null);
+        console.log('Upload process completed');
       }
-      Alert.alert('Upload Error', `Failed to upload video: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsCompressing(false);
-      console.log('Upload process completed');
-    }
-  };
+    };
 
   return (
     <View style={styles.container}>
@@ -214,7 +217,7 @@ export function PickAndUploadVideo() {
         </View>
       )}
 
-      {uploadProgress > 0 && uploadProgress < 100 && (
+    {uploadProgress > 0 && uploadProgress < 100 && (
         <View style={styles.progressContainer}>
           <View style={[styles.progressBar, { width: `${uploadProgress}%` }]} />
           <Text style={styles.progressText}>{uploadProgress.toFixed(2)}%</Text>
@@ -222,17 +225,17 @@ export function PickAndUploadVideo() {
       )}
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button} onPress={pickVideo}>
+        <TouchableOpacity style={[styles.button,{marginRight:30}]} onPress={pickVideo}>
           <Text style={styles.buttonText}>Pick Video</Text>
         </TouchableOpacity>
         {video && (
           <TouchableOpacity 
-            style={[styles.button, (isCompressing || uploadProgress > 0) && styles.disabledButton]} 
+            style={[styles.button, (isCompressing || isUploading) && styles.disabledButton]} 
             onPress={() => handleUpload(video)}
-            disabled={isCompressing || uploadProgress > 0}
+            disabled={isCompressing || isUploading}
           >
             <Text style={styles.buttonText}>
-              {isCompressing ? 'Compressing...' : uploadProgress > 0 ? 'Uploading...' : 'Upload Video'}
+              {isCompressing ? 'Compressing...' : isUploading ? 'Uploading...' : 'Upload Video'}
             </Text>
           </TouchableOpacity>
         )}
@@ -251,6 +254,7 @@ const styles = StyleSheet.create({
   },
   video: {
     width: '100%',
+    height: '80%',
     aspectRatio: 16 / 9,
     marginBottom: 20,
     borderRadius: 10,
@@ -259,7 +263,8 @@ const styles = StyleSheet.create({
   },
   placeholderContainer: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    height: '80%',
+    //aspectRatio: 16 / 9,
     marginBottom: 20,
     borderRadius: 10,
     backgroundColor: '#e0e0e0',
