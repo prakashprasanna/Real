@@ -66,9 +66,10 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
         ref={videoRef}
         source={{ uri }}
         style={styles.video}
-        resizeMode={ResizeMode.CONTAIN}
-        isLooping={false}
-        shouldPlay={false}
+        resizeMode={ResizeMode.COVER}
+        isLooping={true}
+        shouldPlay={true}
+        isMuted={true}
       />
     </TouchableOpacity>
   );
