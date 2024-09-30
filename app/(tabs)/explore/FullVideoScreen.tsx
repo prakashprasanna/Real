@@ -10,7 +10,7 @@ interface FullVideoScreenProps {
   screen: 'Swipe' | null;
   isActive?: boolean;
   style?: ViewStyle;
-  onSwipe: () => void;  // New prop to handle swipe events
+  onSwipe: () => void;
 }
 
 export default function FullVideoScreen({ uri, screen, isActive = true, style, onSwipe }: FullVideoScreenProps) {

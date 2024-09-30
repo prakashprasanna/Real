@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { FlatList, ViewToken } from 'react-native';
+import { FlatList, ViewToken, Dimensions } from 'react-native';
 import FullVideoScreen from '../../(tabs)/explore/FullVideoScreen';
 
 interface SwipeableVideoFeedProps {
@@ -10,6 +10,7 @@ interface SwipeableVideoFeedProps {
 export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, initialIndex }) => {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const flatListRef = useRef<FlatList>(null);
+  const screenHeight = Dimensions.get('window').height;
 
   const viewabilityConfig = { itemVisiblePercentThreshold: 50 };
   const onViewableItemsChanged = useRef(({ changed }: { changed: ViewToken[] }) => {
@@ -23,6 +24,11 @@ export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, 
     setActiveIndex(prev => prev);  // This will trigger a re-render
   };
 
+  useEffect(() => {
+    // Scroll to the initial index when the component mounts
+    flatListRef.current?.scrollToIndex({ index: initialIndex, animated: false });
+  }, [initialIndex]);
+
   return (
     <FlatList
       ref={flatListRef}
@@ -33,7 +39,7 @@ export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, 
           screen='Swipe' 
           isActive={index === activeIndex}
           onSwipe={handleSwipe}
-          style={{ height: '100%' }}
+          style={{ height: screenHeight }}
         />
       )}
       keyExtractor={(item, index) => index.toString()}
@@ -42,6 +48,14 @@ export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, 
       showsVerticalScrollIndicator={false}
       viewabilityConfig={viewabilityConfig}
       onViewableItemsChanged={onViewableItemsChanged.current}
+      getItemLayout={(data, index) => ({
+        length: screenHeight,
+        offset: screenHeight * index,
+        index,
+      })}
+      snapToInterval={screenHeight}
+      snapToAlignment="start"
+      decelerationRate="fast"
     />
   );
 };
