@@ -1,28 +1,42 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, Dimensions, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Dimensions, Text, TouchableOpacity, ViewStyle } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 interface FullVideoScreenProps {
   uri: string;
   screen: 'Swipe' | null;
   isActive?: boolean;
+  style?: ViewStyle;
 }
 
-export default function FullVideoScreen({ uri, screen, isActive = true }: FullVideoScreenProps) {
+export default function FullVideoScreen({ uri, screen, isActive = true, style }: FullVideoScreenProps) {
   const videoRef = useRef<Video>(null);
   const isFocused = useIsFocused();
+  const navigation = useNavigation();
+  const router = useRouter();
   const [status, setStatus] = useState<AVPlaybackStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Hide the bottom tab bar when this screen is focused
+    navigation.setOptions({
+      tabBarStyle: { display: 'none' },
+    });
+
     return () => {
       if (videoRef.current) {
         videoRef.current.stopAsync();
         videoRef.current.unloadAsync();
       }
+      // Show the bottom tab bar when leaving this screen
+      navigation.setOptions({
+        tabBarStyle: { display: 'flex', backgroundColor: '#6bb2be' },
+      });
     };
-  }, []);
+  }, [navigation]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -50,6 +64,10 @@ export default function FullVideoScreen({ uri, screen, isActive = true }: FullVi
     }
   };
 
+  const handleBackPress = () => {
+    router.back();
+  };
+
   if (error) {
     return (
       <View style={styles.errorContainer}>
@@ -62,7 +80,10 @@ export default function FullVideoScreen({ uri, screen, isActive = true }: FullVi
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
+      <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+        <Ionicons name="arrow-back" size={24} color="white" />
+      </TouchableOpacity>
       <Video
         ref={videoRef}
         source={{ uri }}
@@ -110,5 +131,12 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: 'white',
     fontSize: 16,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    zIndex: 10,
+    padding: 10,
   },
 });

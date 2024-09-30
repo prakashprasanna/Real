@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { FlatList, ViewToken, Text } from 'react-native';
+import { FlatList, ViewToken, Text, Dimensions } from 'react-native';
 import FullVideoScreen from '../../(tabs)/explore/FullVideoScreen';
 
 interface SwipeableVideoFeedProps {
@@ -14,7 +14,10 @@ export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, 
     console.log("Videos array is empty or not an array");
     return <Text>No videos available</Text>;
   }
+
   const flatListRef = useRef<FlatList>(null);
+  const screenHeight = Dimensions.get('window').height;
+
   const viewabilityConfig = { itemVisiblePercentThreshold: 50 };
   const onViewableItemsChanged = useRef(({ changed }: { changed: ViewToken[] }) => {
     // You can add logic here if needed when the visible item changes
@@ -29,7 +32,13 @@ export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, 
     <FlatList
       ref={flatListRef}
       data={videos}
-      renderItem={({ item }) => <FullVideoScreen uri={item} screen='Swipe' />}
+      renderItem={({ item }) => (
+        <FullVideoScreen 
+          uri={item} 
+          screen='Swipe' 
+          style={{ height: screenHeight }}
+        />
+      )}
       keyExtractor={(item, index) => index.toString()}
       pagingEnabled
       horizontal={false}
@@ -37,10 +46,13 @@ export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, 
       viewabilityConfig={viewabilityConfig}
       onViewableItemsChanged={onViewableItemsChanged.current}
       getItemLayout={(data, index) => ({
-        length: 100, // Adjust this value based on your video item height
-        offset: 100 * index,
+        length: screenHeight,
+        offset: screenHeight * index,
         index,
       })}
+      snapToInterval={screenHeight}
+      snapToAlignment="start"
+      decelerationRate="fast"
     />
   );
 };
