@@ -19,9 +19,9 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style }:
   const router = useRouter();
   const [status, setStatus] = useState<AVPlaybackStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(true);
 
   useEffect(() => {
-    // Hide the bottom tab bar when this screen is focused
     navigation.setOptions({
       tabBarStyle: { display: 'none' },
     });
@@ -31,7 +31,6 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style }:
         videoRef.current.stopAsync();
         videoRef.current.unloadAsync();
       }
-      // Show the bottom tab bar when leaving this screen
       navigation.setOptions({
         tabBarStyle: { display: 'flex', backgroundColor: '#6bb2be' },
       });
@@ -68,6 +67,13 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style }:
     router.back();
   };
 
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (videoRef.current) {
+      videoRef.current.setIsMutedAsync(!isMuted);
+    }
+  };
+
   if (error) {
     return (
       <View style={styles.errorContainer}>
@@ -84,6 +90,9 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style }:
       <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
         <Ionicons name="arrow-back" size={24} color="white" />
       </TouchableOpacity>
+      <TouchableOpacity style={styles.muteButton} onPress={toggleMute}>
+        <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={24} color="white" />
+      </TouchableOpacity>
       <Video
         ref={videoRef}
         source={{ uri }}
@@ -92,6 +101,7 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style }:
         resizeMode={ResizeMode.CONTAIN}
         isLooping
         shouldPlay={isActive && isFocused}
+        isMuted={isMuted || !isActive || !isFocused}
         onPlaybackStatusUpdate={onPlaybackStatusUpdate}
         onError={(error: any) => handleVideoError(error && typeof error === 'object' && 'message' in error ? error.message : String(error))}
       />
@@ -136,6 +146,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 40,
     left: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  muteButton: {
+    position: 'absolute',
+    bottom: 40,
+    right: 20,
     zIndex: 10,
     padding: 10,
   },
