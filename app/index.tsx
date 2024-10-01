@@ -41,6 +41,10 @@ const LoginScreen: React.FC = () => {
     router.push('/SignupScreen');
   };
 
+  const handleForgotPassword = () => {
+    router.push('/ForgotPasswordScreen');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content} testID="loginScreen">
@@ -72,7 +76,7 @@ const LoginScreen: React.FC = () => {
           <Text style={styles.buttonText}>Log in</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity>
+        <TouchableOpacity onPress={handleForgotPassword}>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>
 
