@@ -40,7 +40,7 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
     setOrderedVideos(newOrderedVideos);
     onVideoPress(video);
   }, [orderedVideos, onVideoPress]);
-  
+
   return (
     <ScrollView
       contentContainerStyle={styles.scrollViewContent}
@@ -56,19 +56,23 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
       <Text style={styles.debugInfo}>
         Videos: {videos.length} | Last Refreshed: {lastRefreshTime.toLocaleTimeString()}
       </Text>
-      <FlatList
-        data={videos}
-        renderItem={({ item, index }) => (
-          <VideoPreview
-            uri={item.downloadURL}
-            index={index}
-          />
-        )}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.flatListContent}
-        scrollEnabled={false}
-      />
+      {videos.length === 0 ? (
+        <Text style={styles.emptyMessage}>No videos available. Pull down to refresh.</Text>
+      ) : (
+        <FlatList
+          data={videos}
+          renderItem={({ item, index }) => (
+            <VideoPreview
+              uri={item.downloadURL}
+              index={index}
+            />
+          )}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          contentContainerStyle={styles.flatListContent}
+          scrollEnabled={false}
+        />
+      )}
     </ScrollView>
   );
 };
@@ -84,5 +88,11 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#f0f0f0',
     fontSize: 12,
+  },
+  emptyMessage: {
+    padding: 20,
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#666',
   },
 });

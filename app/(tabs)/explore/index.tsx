@@ -10,6 +10,8 @@ import { useRouter } from 'expo-router';
 import { Destination, fetchDestinations, fetchVideos, Video } from '../../../api/destinationsApi';
 import { useDispatch } from 'react-redux';
 import { setVideos } from '../../../Redux/videosSlice';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../Redux/store';
 
 export default function Explore() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,15 +22,20 @@ export default function Explore() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const dispatch = useDispatch();
+  const userId = useSelector((state: RootState) => state.auth?.userId);
+
 
   useEffect(() => {
     loadDestinations();
-    loadVideos();
-  }, []);
+    if (userId) {
+      loadVideos();
+    }
+  }, [userId]);
 
   const loadVideos = async () => {
+    if (!userId) return;
     try {
-      const fetchedVideos = await fetchVideos();
+      const fetchedVideos = await fetchVideos(userId);
       if (fetchedVideos) {
         dispatch(setVideos(fetchedVideos));
         console.log('Videos loaded:', fetchedVideos);
@@ -39,6 +46,20 @@ export default function Explore() {
     }
   };
 
+  const handleRefresh = async () => {
+    console.log("Starting video refresh...");
+    if (!userId) return;
+    try {
+      const refreshedVideos = await fetchVideos(userId);
+      if (refreshedVideos) {
+        dispatch(setVideos(refreshedVideos));
+        setVideoss(refreshedVideos);
+        console.log('Videos refreshed:', refreshedVideos);
+      }
+    } catch (error) {
+      console.error('Failed to refresh videos:', error);
+    }
+  };
   const loadDestinations = async () => {
     if (loading) return;
     setLoading(true);
@@ -60,19 +81,6 @@ export default function Explore() {
     });
   };
 
-  const handleRefresh = async () => {
-    console.log("Starting video refresh...");
-    try {
-      const refreshedVideos = await fetchVideos();
-      if (refreshedVideos) {
-        dispatch(setVideos(refreshedVideos));
-        setVideoss(refreshedVideos);
-        console.log('Videos refreshed:', refreshedVideos);
-      }
-    } catch (error) {
-      console.error('Failed to refresh videos:', error);
-    }
-  };
 
   return (
     <>

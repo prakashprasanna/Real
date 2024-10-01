@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import FilterButtons from './FilterButtons';
 
 const { width } = Dimensions.get('window');
-const ITEM_WIDTH = width * 0.5;
+const ITEM_WIDTH = width * 0.2;
 
 type DestinationListProps = {
   destinations: Destination[];
@@ -27,7 +27,7 @@ export default function DestinationList({
 }: DestinationListProps) {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState('All');
-  const filters = ['All', 'Beach', 'Mountain', 'City', 'Countryside'];
+  const filters = ['All', 'Fasion', 'Shopping', 'Food', 'Games'];
 
   const handleFilterPress = (filter: string) => {
     setActiveFilter(filter);
@@ -62,7 +62,6 @@ export default function DestinationList({
         <Image source={{ uri: item.image }} style={styles.destinationImage} />
         {/* <View style={styles.destinationInfo}>
           <Text style={styles.destinationName}>{item.name}</Text>
-          <Text style={styles.destinationDescription} numberOfLines={2}>{item.description}</Text>
         </View> */}
       </TouchableOpacity>
       {isFavoritesList && (
@@ -73,20 +72,40 @@ export default function DestinationList({
           <Text style={styles.deleteButtonText}>X</Text>
         </TouchableOpacity>
       )}
+      <View style={styles.nameContainer}>
+        <Text style={styles.nameBelowImage}>{item.name}</Text>
+      </View>
+    </View>
+  );
+
+  const renderEmptyList = () => (
+    <View style={styles.emptyListContainer}>
+      <Text style={styles.emptyListText}>
+        {isFavoritesList 
+          ? "You haven't added any followers yet." 
+          : "No followers available at the moment."}
+      </Text>
+      <Text style={styles.emptyListSubText}>
+        {isFavoritesList 
+          ? "Explore users and follow them!" 
+          : "Please check back later or try refreshing."}
+      </Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
-        <FilterButtons
-          filters={filters}
-          activeFilter={activeFilter}
-          onFilterPress={handleFilterPress}
-        />
-       <View style={styles.arrowContainer}>
+      <FilterButtons
+        filters={filters}
+        activeFilter={activeFilter}
+        onFilterPress={handleFilterPress}
+      />
+      <View style={styles.arrowContainer}>
         <Ionicons name="arrow-forward" size={24} color="black" />
-        {/* <Text style={styles.arrowText}>Scroll for more</Text> */}
       </View>
+      {destinations.length === 0 ? (
+        renderEmptyList()
+      ) : (
       <FlatList
         horizontal
         showsHorizontalScrollIndicator={true}
@@ -100,13 +119,14 @@ export default function DestinationList({
         snapToInterval={ITEM_WIDTH + 20}
         decelerationRate="fast"
       />
+    )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    height: '40%',
+    height: '25%',
     marginBottom: 10, 
   },
   carouselContainer: {
@@ -127,34 +147,31 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 10,
-    paddingBottom: 20, 
+    paddingBottom: 30, 
+    marginTop: 10,
   },
   destinationItem: {
     width: ITEM_WIDTH,
     marginRight: 20,
     backgroundColor: 'white',
     borderRadius: 10,
-    overflow: 'hidden',
+    overflow: 'visible', // Changed from 'hidden' to 'visible'
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    //paddingBottom: 20, // Add padding at the bottom for the name
   },
   destinationContent: {
     flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#000',
   },
   destinationImage: {
     height: '100%',
     resizeMode: 'cover',
-  },
-  destinationInfo: {
-    padding: 10,
-  },
-  destinationName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
   },
   destinationDescription: {
     fontSize: 14,
@@ -175,5 +192,49 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  destinationInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 5,
+  },
+  destinationName: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+  },
+  nameContainer: {
+    position: 'absolute',
+    bottom: -25, // Adjust this value to position the name below the image
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  nameBelowImage: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: 'black',
+    textAlign: 'center',
+  },
+  emptyListContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  emptyListText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  emptyListSubText: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#666',
   },
 });

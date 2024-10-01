@@ -35,6 +35,7 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 0,
     marginBottom: 10,
+    marginLeft: 10,
   },
   filterButton: {
     paddingHorizontal: 16,

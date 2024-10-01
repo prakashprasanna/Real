@@ -40,10 +40,15 @@ export function PickAndUploadVideo() {
       Alert.alert('Error', 'Failed to pick video. Please try again.');
     }
   };
-
   const uploadVideo = async (videoUri: string) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      Alert.alert('Error', 'You must be logged in to upload a video.');
+      return;
+    }
+
     const filename = `${generateUniqueId()}.mp4`;
-    const storageRef = ref(storage, `videos/${filename}`);
+    const storageRef = ref(storage, `videos/${userId}/${filename}`);
   
     console.log('Starting video upload...');
     console.log('Video URI:', videoUri);
@@ -73,7 +78,7 @@ export function PickAndUploadVideo() {
         async () => {
           console.log('Upload completed successfully');
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          await saveVideoMetadata(downloadURL, filename);
+          await saveVideoMetadata(downloadURL, filename, userId);
           Alert.alert('Success', 'Video uploaded successfully');
         }
       );
@@ -84,13 +89,13 @@ export function PickAndUploadVideo() {
     }
   };
 
-  const saveVideoMetadata = async (downloadURL: string, filename: string) => {
+  const saveVideoMetadata = async (downloadURL: string, filename: string, userId: string) => {
     const videoId = generateUniqueId();
     const videoRef = doc(firestore, 'videos', videoId);
     await setDoc(videoRef, {
       downloadURL,
       filename,
-      uploadedBy: auth.currentUser?.uid || 'anonymous',
+      uploadedBy: userId,
       uploadedAt: serverTimestamp(),
       email: auth.currentUser?.email || 'anonymous',
     });

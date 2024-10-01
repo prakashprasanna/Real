@@ -15,15 +15,18 @@ export default function TabLayout() {
   const router = useRouter();
   const dispatch = useDispatch();
   const lastFetchTime = useSelector((state: RootState) => state.videos.lastFetchTime);
-  const videos = useSelector((state: RootState) => state.videos.allVideos);
+  const videos = useSelector((state: RootState) => state.videos.videos);
   const isLoading = useSelector((state: RootState) => state.videos.isLoading);
+  const userId = useSelector((state: RootState) => state.auth?.userId);
 
   const fetchVideosIfNeeded = useCallback(async () => {
+    if (!userId) return;
+
     const now = Date.now();
     if (!lastFetchTime || now - lastFetchTime > REFRESH_INTERVAL || videos.length === 0) {
       dispatch(setLoading(true));
       try {
-        const refreshedVideos = await fetchVideos();
+        const refreshedVideos = await fetchVideos(userId);
         if (refreshedVideos) {
           dispatch(setVideos(refreshedVideos));
         }
@@ -33,7 +36,7 @@ export default function TabLayout() {
         dispatch(setLoading(false));
       }
     }
-  }, [dispatch, lastFetchTime, videos]);
+  }, [dispatch, lastFetchTime, videos, userId]);
 
   useEffect(() => {
     fetchVideosIfNeeded();
