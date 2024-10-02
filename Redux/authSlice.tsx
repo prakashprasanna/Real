@@ -1,9 +1,12 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { RootState } from './store'; // Adjust the import path as needed
 
 interface AuthState {
   userId: string | null;
   // Add other auth-related state as needed
 }
+
+export const selectUserId = (state: RootState) => state.auth.userId;
 
 const initialState: AuthState = {
   userId: null,

@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
 import { getFirestore } from 'firebase/firestore';  // Optional, only if using Firestore for metadata
-
+import { getAuth } from 'firebase/auth';
 // Your Firebase configuration (replace with your Firebase credentials)
 const firebaseConfig = {
     apiKey: "AIzaSyDEOKNyDSsGGpHSHCreZWsQ3Uhl3a0OK14",
@@ -17,8 +17,8 @@ const app = initializeApp(firebaseConfig);
 
 // Firebase Storage reference
 const storage = getStorage(app);
-
+const auth = getAuth(app);
 // Firestore (Optional for storing metadata)
 const firestore = getFirestore(app);
 
-export { storage, firestore };
+export { storage, firestore, app, auth }; 

@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { enableScreens } from 'react-native-screens';
-import { getAuth, signInWithEmailAndPassword, initializeAuth } from 'firebase/auth';
-import { initializeApp } from 'firebase/app';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { setUserId } from '../Redux/authSlice'; 
+import { useDispatch } from 'react-redux';
+import { app, auth } from '../firebaseConfig';  // Import both app and auth
 
-enableScreens();  // This optimizes memory usage by using native screens
+enableScreens();
 
 const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
-  const auth = getAuth();
+  const dispatch = useDispatch();
 
   const handleLogin = async () => {
     if(email === '' || password === '') {
@@ -26,6 +26,8 @@ const LoginScreen: React.FC = () => {
       // Signed in 
       const user = userCredential.user;
       console.log('User logged in:', user.uid);
+      dispatch(setUserId(user.uid));
+
       // Navigate to tabs after successful login
       router.replace('/(tabs)/explore');
     } catch (error:any) {
