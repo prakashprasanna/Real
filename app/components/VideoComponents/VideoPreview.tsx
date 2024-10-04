@@ -1,10 +1,10 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../../../Redux/store';
-import { setCurrentIndex, reorderVideos } from '../../../Redux/videosSlice';
+import { RootState } from '@/Redux/store';
+import { setCurrentIndex, reorderVideos } from '@/Redux/videosSlice';
 
 interface VideoPreviewProps {
   uri: string;
@@ -17,7 +17,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
   const videoRef = useRef<Video>(null);
   const router = useRouter();
   const dispatch = useDispatch();
-  const { allVideos } = useSelector((state: RootState) => state.videos);
+  const videos = useSelector((state: RootState) => state.videos.videos);
 
   useEffect(() => {
     const playVideo = async () => {
@@ -33,7 +33,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
 
   const handlePress = () => {
     console.log('Video clicked:', index);
-    console.log('Current allVideos:', allVideos);
+    console.log('Current videos:', videos);
 
     // Reorder videos to put the clicked one first
     dispatch(reorderVideos(index));
@@ -41,20 +41,20 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
     // Set the current index to 0 (the first video, which is now the clicked one)
     dispatch(setCurrentIndex(0));
 
-    // Get the updated allVideos after reordering
-    const updatedAllVideos = [
-      allVideos[index],
-      ...allVideos.slice(0, index),
-      ...allVideos.slice(index + 1)
+    // Get the updated videos after reordering
+    const updatedVideos = [
+      videos[index],
+      ...videos.slice(0, index),
+      ...videos.slice(index + 1)
     ];
 
-    console.log('Reordered videos:', updatedAllVideos);
+    console.log('Reordered videos:', updatedVideos);
 
     // Navigate to the SwipeableVideoFeedScreen
     router.push({
       pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
       params: {
-        videos: updatedAllVideos.map(video => video.downloadURL),
+        videos: updatedVideos.map(video => video.downloadURL),
         initialIndex: 0,
       },
     });
@@ -90,3 +90,5 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 });
+
+export default VideoPreview;

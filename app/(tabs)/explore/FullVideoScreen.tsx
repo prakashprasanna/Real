@@ -11,9 +11,10 @@ interface FullVideoScreenProps {
   isActive?: boolean;
   style?: ViewStyle;
   onSwipe: () => void;
+  onReorder: (index: number) => void;
 }
 
-export default function FullVideoScreen({ uri, screen, isActive = true, style, onSwipe }: FullVideoScreenProps) {
+export default function FullVideoScreen({ uri, screen, isActive = true, style, onSwipe, onReorder }: FullVideoScreenProps) {
   const videoRef = useRef<Video>(null);
   const isFocused = useIsFocused();
   const navigation = useNavigation();
@@ -51,7 +52,6 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style, o
   }, [isActive, isFocused, isMuted]);
 
   useEffect(() => {
-    // This effect will run when a swipe occurs
     if (!isActive) {
       setIsMuted(true);
       if (videoRef.current) {
@@ -86,7 +86,7 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style, o
     if (videoRef.current) {
       videoRef.current.setIsMutedAsync(newMuteState);
     }
-    onSwipe();  // Notify parent component about the mute change
+    onSwipe();
   };
 
   if (error) {

@@ -10,6 +10,10 @@ import { app, auth } from '../firebaseConfig';  // Import both app and auth
 
 enableScreens();
 
+import { LogBox } from 'react-native';
+LogBox.ignoreLogs(['Warning: ...']); // Ignore specific logs
+LogBox.ignoreAllLogs(); // Ignore all logs (use with caution)
+
 const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

@@ -2,17 +2,17 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Video } from '../api/destinationsApi';
 
 interface VideosState {
-  allVideos: Video[];
-  currentIndex: number;
-  lastFetchTime: number | null;
+  videos: Video[];
   isLoading: boolean;
+  lastFetchTime: number | null;
+  currentIndex: number;
 }
 
 const initialState: VideosState = {
-  allVideos: [],
-  currentIndex: 0,
-  lastFetchTime: null,
+  videos: [],
   isLoading: false,
+  lastFetchTime: null,
+  currentIndex: 0,
 };
 
 const videosSlice = createSlice({
@@ -20,26 +20,25 @@ const videosSlice = createSlice({
   initialState,
   reducers: {
     setVideos: (state, action: PayloadAction<Video[]>) => {
-      state.allVideos = action.payload;
+      state.videos = action.payload;
       state.lastFetchTime = Date.now();
-    },
-    setCurrentIndex: (state, action: PayloadAction<number>) => {
-      state.currentIndex = action.payload;
-    },
-    reorderVideos: (state, action: PayloadAction<number>) => {
-      const clickedIndex = action.payload;
-      const clickedVideo = state.allVideos[clickedIndex];
-      state.allVideos = [
-        clickedVideo,
-        ...state.allVideos.slice(0, clickedIndex),
-        ...state.allVideos.slice(clickedIndex + 1)
-      ];
+      state.currentIndex = 0;
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
+    reorderVideos: (state, action: PayloadAction<number>) => {
+      const index = action.payload;
+      const videoToMove = state.videos[index];
+      state.videos.splice(index, 1);
+      state.videos.unshift(videoToMove);
+      state.currentIndex = 0;
+    },
+    setCurrentIndex: (state, action: PayloadAction<number>) => {
+      state.currentIndex = action.payload;
+    },
   },
 });
 
-export const { setVideos, setCurrentIndex, reorderVideos, setLoading } = videosSlice.actions;
+export const { setVideos, setLoading, reorderVideos, setCurrentIndex } = videosSlice.actions;
 export default videosSlice.reducer;

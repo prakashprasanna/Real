@@ -1,11 +1,15 @@
 import { storage } from '../firebaseConfig';
-import { ref, listAll, getDownloadURL } from 'firebase/storage';
-import { collection, getFirestore, query, where, getDocs } from 'firebase/firestore';
+import { ref, listAll, getDownloadURL, getStorage } from 'firebase/storage';
+import { collection, getFirestore, query, where, getDocs, QueryDocumentSnapshot } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 export interface Video {
   id: string;
-  name: string;
+  filename: string;
   downloadURL: string;
+  uploadedBy: string;
+  uploadedAt: string | null;
+  authorizedViewers: string[];
 }
 
 export interface Destination {
@@ -32,28 +36,73 @@ export const fetchDestinations = async (page: number, limit: number): Promise<De
   }
 };
 
-export const fetchVideos = async (userId: string): Promise<Video[]> => {
+export const fetchVideos = async (): Promise<Video[]> => {
+  console.log('[fetchVideos] Starting to fetch videos');
+  const startTime = Date.now();
+
   try {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log('[fetchVideos] No user logged in');
+      return [];
+    }
+    console.log('[fetchVideos] Current user:', currentUser.uid);
+
     const db = getFirestore();
+    const storage = getStorage();
+    console.log('[fetchVideos] Firestore and Storage instances obtained');
+
     const videosRef = collection(db, 'videos');
-    const q = query(videosRef, where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
+    const userVideosQuery = query(videosRef, where('uploadedBy', '==', currentUser.uid));
+    console.log('[fetchVideos] User videos query created');
 
-    const videosPromises = querySnapshot.docs.map(async (doc: any) => {
+    const querySnapshot = await getDocs(userVideosQuery);
+    console.log('[fetchVideos] Query snapshot obtained. Size:', querySnapshot.size);
+
+    if (querySnapshot.empty) {
+      console.log('[fetchVideos] No videos found for this user.');
+      return [];
+    }
+
+    const videos: Video[] = [];
+    for (const doc of querySnapshot.docs) {
+      console.log('[fetchVideos] Processing document:', doc.id);
       const data = doc.data();
-      const storageRef = ref(storage, data.storagePath);
-      const downloadURL = await getDownloadURL(storageRef);
-      return {
-        id: doc.id,
-        name: data.name,
-        downloadURL: downloadURL,
-      };
-    });
+      console.log('[fetchVideos] Document data:', JSON.stringify(data, null, 2));
 
-    const videos = await Promise.all(videosPromises);
+      if (data.filename) {
+        try {
+          const storageRef = ref(storage, `videos/${currentUser.uid}/${data.filename}`);
+          const downloadURL = await getDownloadURL(storageRef);
+
+          videos.push({
+            id: doc.id,
+            filename: data.filename,
+            downloadURL: downloadURL,
+            uploadedBy: currentUser.uid,
+            uploadedAt: data.uploadedAt ? data.uploadedAt.toDate().toISOString() : null,
+            authorizedViewers: data.authorizedViewers || [],
+          });
+          console.log('[fetchVideos] Video added:', doc.id);
+        } catch (error) {
+          console.error(`[fetchVideos] Error getting download URL for ${data.filename}:`, error);
+        }
+      } else {
+        console.warn('[fetchVideos] Skipping document due to missing filename:', doc.id);
+      }
+    }
+
+    console.log('[fetchVideos] Processed videos count:', videos.length);
+    console.log('[fetchVideos] Fetch operation completed in', Date.now() - startTime, 'ms');
     return videos;
   } catch (error) {
-    console.error('Error fetching videos:', error);
+    console.error('[fetchVideos] Error fetching videos:', error);
+    if (error instanceof Error) {
+      console.error('[fetchVideos] Error name:', error.name);
+      console.error('[fetchVideos] Error message:', error.message);
+      console.error('[fetchVideos] Error stack:', error.stack);
+    }
     throw error;
   }
 };

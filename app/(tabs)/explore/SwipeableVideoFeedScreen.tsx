@@ -1,45 +1,55 @@
 import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { SwipeableVideoFeed } from '../../components/VideoComponents/SwipeableVideoFeed';
-import { RouteProp } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
-import { Video } from '../../../api/destinationsApi';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../../../Redux/store';
-import { setCurrentIndex } from '../../../Redux/videosSlice';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/Redux/store';
+import { reorderVideos } from '@/Redux/videosSlice';
+import { useDispatch } from 'react-redux';
 
-type SwipeableVideoFeedParams = {
-  videos: Video[];
-  initialIndex: number;
-};
 
-type SwipeableVideoFeedScreenProps = {
-  route: RouteProp<Record<string, SwipeableVideoFeedParams>, string>;
-};
+export default function SwipeableVideoFeedScreen() {
+  const { videos, initialIndex } = useLocalSearchParams<{ videos: string, initialIndex: string }>();
+  console.log("SwipeableVideoFeedScreen params VIDEOS:", videos);
+  console.log("SwipeableVideoFeedScreen params INITIAL INDEX:", initialIndex);
 
-export default function SwipeableVideoFeedScreen({ route }: SwipeableVideoFeedScreenProps) {
-  const { videos, initialIndex } = useLocalSearchParams();
-  console.log("SwipeableVideoFeedScreen VIDEOS ", videos.length)
+  const { videos: storeVideos, currentIndex } = useSelector((state: RootState) => state.videos);
+  console.log("SwipeableVideoFeedScreen STORE VIDEOS:", storeVideos.length);
+  console.log("SwipeableVideoFeedScreen CURRENT INDEX:", currentIndex);
+
+  const videoUrls = storeVideos.map(video => video.downloadURL);
+
   const dispatch = useDispatch();
-  const { allVideos, currentIndex } = useSelector((state: RootState) => state.videos);
-  console.log("SwipeableVideoFeedScreen ALL VIDEOS ", allVideos)
+
+  const handleReorder = (index: number) => {
+    dispatch(reorderVideos(index));
+  };
+
+
   return (
-<View style={styles.container}>
-  {allVideos.length > 0 ? (
-    <SwipeableVideoFeed 
-      videos={allVideos.map(video => video.downloadURL)} 
-      initialIndex={Math.min(Number(currentIndex) || 0, allVideos.length - 1)} 
-    />
-  ) : (
-    <Text>No videos available</Text>
-    )}
-  </View>
+    <View style={styles.container}>
+      {videoUrls.length > 0 ? (
+        <SwipeableVideoFeed 
+          videos={videoUrls} 
+          initialIndex={Math.min(currentIndex, videoUrls.length - 1)} 
+          onReorder={handleReorder}
+        />
+      ) : (
+        <Text style={styles.noVideosText}>No videos available</Text>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor:'black'
+    backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noVideosText: {
+    color: 'white',
+    fontSize: 18,
   },
 });

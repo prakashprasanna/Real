@@ -7,8 +7,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchVideos } from '@/api/destinationsApi';
 import { setVideos, setLoading } from '@/Redux/videosSlice';
 import { RootState } from '@/Redux/store';
-
-const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+import { auth } from '@/firebaseConfig';
+const REFRESH_INTERVAL = 1 * 60 * 1000; // 5 minutes
 
 export default function TabLayout() {
   const { cart } = useCart();
@@ -17,26 +17,38 @@ export default function TabLayout() {
   const lastFetchTime = useSelector((state: RootState) => state.videos.lastFetchTime);
   const videos = useSelector((state: RootState) => state.videos.videos);
   const isLoading = useSelector((state: RootState) => state.videos.isLoading);
-  const userId = useSelector((state: RootState) => state.auth?.userId);
+  const userId = auth.currentUser?.uid;
 
   const fetchVideosIfNeeded = useCallback(async () => {
-    if (!userId) return;
+    const userId = auth.currentUser?.uid;
+    console.log('Fetching videos if needed...', userId);
+    
+    if (!userId) {
+      console.log('No user logged in. Skipping video fetch.');
+      return;
+    }
 
     const now = Date.now();
-    if (!lastFetchTime || now - lastFetchTime > REFRESH_INTERVAL || videos.length === 0) {
+    const shouldFetch = !lastFetchTime || now - lastFetchTime > REFRESH_INTERVAL || videos.length === 0;
+
+    if (shouldFetch) {
+      console.log('Fetching videos...');
       dispatch(setLoading(true));
+      
       try {
-        const refreshedVideos = await fetchVideos(userId);
-        if (refreshedVideos) {
-          dispatch(setVideos(refreshedVideos));
-        }
+        const refreshedVideos = await fetchVideos();
+        console.log('Fetched videos:', refreshedVideos.length);
+        dispatch(setVideos(refreshedVideos));
       } catch (error) {
-        console.error('Failed to refresh videos:', error);
+        console.error('Failed to fetch videos:', error);
+        // Optionally, you could dispatch an action to set an error state
       } finally {
         dispatch(setLoading(false));
       }
+    } else {
+      console.log('Using cached videos. Count:', videos.length);
     }
-  }, [dispatch, lastFetchTime, videos, userId]);
+  }, [dispatch, lastFetchTime, videos.length]);
 
   useEffect(() => {
     fetchVideosIfNeeded();
