@@ -7,7 +7,8 @@ import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { app } from '../firebaseConfig';
 import RNPickerSelect from 'react-native-picker-select';
 import { countryCodes } from './utils/countryCodes';
-
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 
 const SignupScreen: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -19,11 +20,42 @@ const SignupScreen: React.FC = () => {
   const [mobileNumber, setMobileNumber] = useState('');
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [profileImage, setProfileImage] = useState<string | null>(null);
   const searchInputRef = useRef<TextInput>(null);
   const router = useRouter();
   const auth = getAuth();
   const db = getFirestore(app);
 
+  const handleImagePick = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets[0].uri) {
+      setProfileImage(result.assets[0].uri);
+    }
+  };
+
+  const handleCameraCapture = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Camera permission is required to take a selfie.');
+      return;
+    }
+
+    let result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets[0].uri) {
+      setProfileImage(result.assets[0].uri);
+    }
+  };
 
   const handleSignup = async () => {
     if (email === '' || password === '' || confirmPassword === '' || firstName === '' || lastName === '') {
@@ -47,6 +79,7 @@ const SignupScreen: React.FC = () => {
         mobileNumber: mobileNumber ? `${countryCode}${mobileNumber}` : null,
         createdAt: new Date(),
         lastLogin: new Date(),
+        profileImageUrl: profileImage,
       });
 
       console.log('User details added to Firestore');
@@ -75,6 +108,26 @@ const SignupScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  const ProfileImagePicker = () => (
+    <View style={styles.profileImageContainer}>
+      {profileImage ? (
+        <Image source={{ uri: profileImage }} style={styles.profileImage} />
+      ) : (
+        <View style={styles.profileImagePlaceholder}>
+          <Ionicons name="person" size={40} color="#999" />
+        </View>
+      )}
+      <View style={styles.imagePickerButtons}>
+        <TouchableOpacity style={styles.imagePickerButton} onPress={handleImagePick}>
+          <Ionicons name="images" size={24} color="#6bb2be" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.imagePickerButton} onPress={handleCameraCapture}>
+          <Ionicons name="camera" size={24} color="#6bb2be" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -84,6 +137,7 @@ const SignupScreen: React.FC = () => {
             style={styles.logo}
             resizeMode="contain"
           />
+          <ProfileImagePicker />
           <TextInput
             style={styles.input}
             placeholder="First Name"
@@ -273,6 +327,33 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
   },
+  profileImageContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  profileImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#e1e1e1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imagePickerButtons: {
+    flexDirection: 'row',
+    marginTop: 10,
+  },
+  imagePickerButton: {
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 20,
+    marginHorizontal: 5,
+  },
 });
 
 const pickerSelectStyles = StyleSheet.create({
@@ -298,7 +379,6 @@ const pickerSelectStyles = StyleSheet.create({
     paddingRight: 30,
     backgroundColor: '#fff',
   },
-  
 });
 
 export default SignupScreen;
