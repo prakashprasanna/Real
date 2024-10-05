@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
@@ -10,6 +10,10 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import { API_URL, checkHealth } from '../../api/CheckHealth';
 import { getApp, setLogLevel } from 'firebase/app';
 import { firestore } from '@/firebaseConfig';
+import { useRouter } from 'expo-router';
+import { useDispatch } from 'react-redux';
+import { setLoading, setVideos } from '@/Redux/videosSlice';
+import { fetchVideos } from '@/api/destinationsApi';
 
 // Set Firebase log level to error
 setLogLevel('error');
@@ -22,6 +26,8 @@ export function PickAndUploadVideo() {
   const [isCompressing, setIsCompressing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const videoRef = useRef<Video>(null);
+  const router = useRouter();
+  const dispatch = useDispatch();
 
   const storage = getStorage();
   const auth = getAuth();
@@ -45,6 +51,15 @@ export function PickAndUploadVideo() {
       Alert.alert('Error', 'Failed to pick video. Please try again.');
     }
   };
+
+  const fetchVideosIfNeeded = useCallback(async () => {
+    try {
+      const refreshedVideos = await fetchVideos();
+      dispatch(setVideos(refreshedVideos));
+    } catch (error) {
+      console.error('Failed to fetch videos:', error);
+    }
+  }, [dispatch]);
 
   const uploadVideo = async (videoUri: string, videoId: string) => {
     const userId = auth.currentUser?.uid;
@@ -136,7 +151,24 @@ export function PickAndUploadVideo() {
             uploadStatus: 'complete' 
           }, { merge: true });
           console.log('Video metadata updated with ID:', videoId);
-          Alert.alert('Success', 'Video uploaded successfully');
+          Alert.alert(
+            'Success', 
+            'Video uploaded successfully',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  dispatch(setLoading(true));
+                  router.push('/(tabs)/explore');
+                  setTimeout(() => {
+                    fetchVideosIfNeeded().then(() => {
+                      dispatch(setLoading(false));
+                    });
+                  }, 0);
+                }
+              }
+            ]
+          );
         }
       );
   
