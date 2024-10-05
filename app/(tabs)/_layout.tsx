@@ -52,7 +52,7 @@ export default function TabLayout() {
 
   useEffect(() => {
     fetchVideosIfNeeded();
-  }, [fetchVideosIfNeeded]);
+  }, []);
 
   const handleExplorePress = useCallback(() => {
     dispatch(setLoading(true));

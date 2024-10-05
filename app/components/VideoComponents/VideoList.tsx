@@ -12,10 +12,8 @@ interface VideoListProps {
 export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRefresh }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
-  const [orderedVideos, setOrderedVideos] = useState<Video[]>(videos);
 
   useEffect(() => {
-    setOrderedVideos(videos);
     console.log("VideoList received new videos:", videos.length);
     videos.forEach((video, index) => {
       console.log(`Video ${index + 1}:`, video.id, video.downloadURL);
@@ -30,16 +28,6 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
     setLastRefreshTime(new Date());
     console.log("Refresh completed");
   };
-
-  const handleVideoPress = useCallback((video: Video) => {
-    // Reorder videos to put the clicked one first
-    const newOrderedVideos = [
-      video,
-      ...orderedVideos.filter(v => v.id !== video.id)
-    ];
-    setOrderedVideos(newOrderedVideos);
-    onVideoPress(video);
-  }, [orderedVideos, onVideoPress]);
 
   return (
     <ScrollView
