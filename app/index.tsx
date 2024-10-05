@@ -6,7 +6,8 @@ import { enableScreens } from 'react-native-screens';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { setUserId } from '../Redux/authSlice'; 
 import { useDispatch } from 'react-redux';
-import { app, auth } from '../firebaseConfig';  // Import both app and auth
+import { app, auth,firestore } from '../firebaseConfig';  // Import both app and auth
+import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 
 enableScreens();
 
@@ -27,18 +28,38 @@ const LoginScreen: React.FC = () => {
     }
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // Signed in 
       const user = userCredential.user;
       console.log('User logged in:', user.uid);
       dispatch(setUserId(user.uid));
-
+  
+      // Check if user exists in the database
+      const userRef = doc(firestore, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+  
+      if (!userDoc.exists()) {
+        // If user doesn't exist, add them to the database
+        Alert.alert('User not found', 'Please complete your signup to continue.', [
+          {
+            text: 'OK',
+            onPress: () => {
+              router.push('/SignupScreen');
+            }
+          }
+        ]);
+      } else {
+        // If user exists, update their last login time
+        await setDoc(userRef, { lastLogin: new Date() }, { merge: true });
+      }
+  
       // Navigate to tabs after successful login
       router.replace('/(tabs)/explore');
     } catch (error:any) {
       const errorCode = error.code;
       const errorMessage = error.message;
       console.error('Login error:', errorCode, errorMessage);
-      Alert.alert('Login Failed', errorMessage);
+      
+      // Show a generic error message
+      Alert.alert('Login Failed', 'Unable to log in. Please check your email and password and try again.');
     }
   };
 
