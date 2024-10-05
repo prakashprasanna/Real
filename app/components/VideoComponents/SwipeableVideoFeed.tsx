@@ -5,10 +5,10 @@ import FullVideoScreen from '../../(tabs)/explore/FullVideoScreen';
 interface SwipeableVideoFeedProps {
   videos: string[];
   initialIndex: number;
-  onReorder: (index: number) => void;
+  //onReorder: (index: number) => void;
 }
 
-export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, initialIndex, onReorder }) => {
+export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, initialIndex }) => {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const flatListRef = useRef<FlatList>(null);
   const screenHeight = Dimensions.get('window').height;
@@ -38,7 +38,7 @@ export const SwipeableVideoFeed: React.FC<SwipeableVideoFeedProps> = ({ videos, 
           screen='Swipe' 
           isActive={index === activeIndex}
           onSwipe={handleSwipe}
-          onReorder={onReorder}
+          //onReorder={onReorder}
           style={{ height: screenHeight }}
         />
       )}

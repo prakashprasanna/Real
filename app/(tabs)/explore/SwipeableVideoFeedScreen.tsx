@@ -4,7 +4,6 @@ import { SwipeableVideoFeed } from '../../components/VideoComponents/SwipeableVi
 import { useLocalSearchParams } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/Redux/store';
-import { reorderVideos } from '@/Redux/videosSlice';
 import { useDispatch } from 'react-redux';
 
 
@@ -21,9 +20,9 @@ export default function SwipeableVideoFeedScreen() {
 
   const dispatch = useDispatch();
 
-  const handleReorder = (index: number) => {
-    dispatch(reorderVideos(index));
-  };
+  // const handleReorder = (index: number) => {
+  //   dispatch(reorderVideos(index));
+  // };
 
 
   return (
@@ -32,7 +31,7 @@ export default function SwipeableVideoFeedScreen() {
         <SwipeableVideoFeed 
           videos={videoUrls} 
           initialIndex={Math.min(currentIndex, videoUrls.length - 1)} 
-          onReorder={handleReorder}
+          // onReorder={handleReorder}
         />
       ) : (
         <Text style={styles.noVideosText}>No videos available</Text>

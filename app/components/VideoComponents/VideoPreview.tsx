@@ -4,7 +4,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/Redux/store';
-import { setCurrentIndex, reorderVideos } from '@/Redux/videosSlice';
+import { setCurrentIndex } from '@/Redux/videosSlice';
 
 interface VideoPreviewProps {
   uri: string;
@@ -35,27 +35,24 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
     console.log('Video clicked:', index);
     console.log('Current videos:', videos);
 
-    // Reorder videos to put the clicked one first
-    dispatch(reorderVideos(index));
-    
-    // Set the current index to 0 (the first video, which is now the clicked one)
-    dispatch(setCurrentIndex(0));
+    // Set the current index to the clicked video's index
+    dispatch(setCurrentIndex(index));
 
-    // Get the updated videos after reordering
-    const updatedVideos = [
+    // Create a new array with the clicked video first, followed by the rest
+    const reorderedVideos = [
       videos[index],
       ...videos.slice(0, index),
       ...videos.slice(index + 1)
     ];
 
-    console.log('Reordered videos:', updatedVideos);
+    console.log('Reordered videos:', reorderedVideos);
 
     // Navigate to the SwipeableVideoFeedScreen
     router.push({
       pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
       params: {
-        videos: updatedVideos.map(video => video.downloadURL),
-        initialIndex: 0,
+        videos: reorderedVideos.map(video => video.downloadURL),
+        initialIndex: 0, // Always start with the first video (which is now the clicked one)
       },
     });
   };

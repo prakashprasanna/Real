@@ -11,10 +11,10 @@ interface FullVideoScreenProps {
   isActive?: boolean;
   style?: ViewStyle;
   onSwipe: () => void;
-  onReorder: (index: number) => void;
+  //onReorder: (index: number) => void;
 }
 
-export default function FullVideoScreen({ uri, screen, isActive = true, style, onSwipe, onReorder }: FullVideoScreenProps) {
+export default function FullVideoScreen({ uri, screen, isActive = true, style, onSwipe }: FullVideoScreenProps) {
   const videoRef = useRef<Video>(null);
   const isFocused = useIsFocused();
   const navigation = useNavigation();

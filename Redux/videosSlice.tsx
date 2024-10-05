@@ -27,18 +27,18 @@ const videosSlice = createSlice({
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
-    reorderVideos: (state, action: PayloadAction<number>) => {
-      const index = action.payload;
-      const videoToMove = state.videos[index];
-      state.videos.splice(index, 1);
-      state.videos.unshift(videoToMove);
-      state.currentIndex = 0;
-    },
+    // reorderVideos: (state, action: PayloadAction<number>) => {
+    //   const index = action.payload;
+    //   const videoToMove = state.videos[index];
+    //   state.videos.splice(index, 1);
+    //   state.videos.unshift(videoToMove);
+    //   state.currentIndex = 0;
+    // },
     setCurrentIndex: (state, action: PayloadAction<number>) => {
       state.currentIndex = action.payload;
     },
   },
 });
 
-export const { setVideos, setLoading, reorderVideos, setCurrentIndex } = videosSlice.actions;
+export const { setVideos, setLoading, setCurrentIndex } = videosSlice.actions;
 export default videosSlice.reducer;

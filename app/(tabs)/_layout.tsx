@@ -8,7 +8,7 @@ import { fetchVideos } from '@/api/destinationsApi';
 import { setVideos, setLoading } from '@/Redux/videosSlice';
 import { RootState } from '@/Redux/store';
 import { auth } from '@/firebaseConfig';
-const REFRESH_INTERVAL = 1 * 60 * 1000; // 5 minutes
+const REFRESH_INTERVAL = 1 * 60 * 1000; // 1 minute
 
 export default function TabLayout() {
   const { cart } = useCart();
