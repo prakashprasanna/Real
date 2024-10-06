@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -27,6 +27,7 @@ export function PickAndUploadVideo() {
   const [isCompressing, setIsCompressing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [progressKey, setProgressKey] = useState(0);
+  const [isCheckingFileSize, setIsCheckingFileSize] = useState(false);
 
   const videoRef = useRef<Video>(null);
   const router = useRouter();
@@ -38,6 +39,7 @@ export function PickAndUploadVideo() {
   const pickVideo = async () => {
     setUploadProgress(0);
     setCompressionProgress(0);
+    setIsCheckingFileSize(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
@@ -54,7 +56,7 @@ export function PickAndUploadVideo() {
         const fileSizeInMB = fileSizeInBytes / (1024 * 1024);
         
         console.log(`Selected video size: ${fileSizeInMB.toFixed(2)} MB`);
-        const MAX_FILE_SIZE_MB = 600;
+        const MAX_FILE_SIZE_MB = 500;
         if (fileSizeInMB > MAX_FILE_SIZE_MB) {
           Alert.alert('File Too Large', `The selected video is ${fileSizeInMB.toFixed(2)} MB. Please choose a video smaller than ${MAX_FILE_SIZE_MB} MB.`);
           return;
@@ -65,6 +67,8 @@ export function PickAndUploadVideo() {
     } catch (error) {
       console.error('Error picking video:', error);
       Alert.alert('Error', 'Failed to pick video. Please try again.');
+    } finally {
+      setIsCheckingFileSize(false);
     }
   };
 
@@ -189,10 +193,15 @@ export function PickAndUploadVideo() {
 
 
   const updateCompressionProgress = useCallback((progress: number) => {
-    console.log('Compression progress:', progress);
+    console.log('Compression progress:', progress); // Keep this
+    console.warn('Compression progress (warn):', progress); // Add this
     setCompressionProgress(prev => {
+      console.log('Previous progress:', prev); // Add this
       if (prev !== progress) {
-        setProgressKey(key => key + 1);
+        setProgressKey(key => {
+          console.log('Updating progress key:', key + 1); // Add this
+          return key + 1;
+        });
         return progress;
       }
       return prev;
@@ -223,7 +232,7 @@ export function PickAndUploadVideo() {
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               try {
-                const data = JSON.parse(line.substr(6));
+                const data = JSON.parse(line.slice(6));
                 if (data.percent !== undefined) {
                   updateCompressionProgress(data.percent);
                 } else if (data.compressedVideoFilename) {
@@ -322,6 +331,13 @@ export function PickAndUploadVideo() {
 
   return (
     <View style={styles.container}>
+      {isCheckingFileSize && (
+        <View style={styles.overlay}>
+          <ActivityIndicator size="large" color="#6bb2be" />
+          <Text style={styles.overlayText}>Checking file size...</Text>
+        </View>
+      )}
+
       {video ? (
         <Video
           ref={videoRef}
@@ -351,8 +367,12 @@ export function PickAndUploadVideo() {
         </View>
       )}
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={[styles.button, { marginRight: 30 }]} onPress={pickVideo}>
+<View style={styles.buttonContainer}>
+        <TouchableOpacity 
+          style={[styles.button, { marginRight: 30 }, isCheckingFileSize && styles.disabledButton]} 
+          onPress={pickVideo}
+          disabled={isCheckingFileSize}
+        >
           <Text style={styles.buttonText}>Pick Video</Text>
         </TouchableOpacity>
         {video && (
@@ -441,5 +461,17 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.5,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  overlayText: {
+    color: '#fff',
+    fontSize: 18,
+    marginTop: 10,
   },
 });
