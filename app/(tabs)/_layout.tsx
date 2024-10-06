@@ -134,6 +134,7 @@ export default function TabLayout() {
         }} 
       />
       <Tabs.Screen name="explore/SwipeableVideoFeedScreen" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="EditProfile" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
 }

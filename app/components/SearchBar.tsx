@@ -15,7 +15,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChangeText }) => {
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
-        placeholder="Search Products..."
+        placeholder="Search Users..."
         placeholderTextColor="#888"
       />
     </View>

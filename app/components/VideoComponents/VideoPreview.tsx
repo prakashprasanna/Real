@@ -37,7 +37,8 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelect
   }, []);
 
   const handlePress = () => {
-    if (isSelected !== undefined) {
+    console.log('Video clicked:', index, isSelected);
+    if (isSelected) {
       // If in selection mode, don't navigate
       return;
     }
@@ -64,7 +65,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelect
     });
   };
 
-  
+
   return (
     <TouchableOpacity 
       onPress={handlePress} 
