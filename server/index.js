@@ -101,17 +101,16 @@ app.post('/compress-video', upload.single('video'), async (req, res) => {
     ffmpeg(inputPath)
       .outputOptions([
         '-c:v libx264',
+        '-preset ultrafast',
+        '-crf 28',
+        '-vf scale=720:-2',
         '-profile:v baseline',
         '-level 3.0',
         '-pix_fmt yuv420p',
-        '-crf 23',
-        '-preset medium',
-        '-maxrate 1M',
-        '-bufsize 2M',
-        '-vf scale=720:-2',
         '-c:a aac',
         '-b:a 128k',
-        '-movflags +faststart'
+        '-movflags +faststart',
+        '-r 30'  // Force 30 fps
       ])
       .toFormat('mp4')
       .output(outputPath)
