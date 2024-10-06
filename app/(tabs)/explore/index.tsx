@@ -6,9 +6,9 @@ import { useLocation } from '../../../hooks/useLocation';
 import StackHeader from '@/app/components/StackHeader';
 import { VideoList } from '../../components/VideoComponents/VideoList'; 
 import { useRouter } from 'expo-router';
-import { Destination, fetchDestinations, fetchVideos, Video } from '../../../api/destinationsApi';
+import { Destination, fetchDestinations, fetchVideos, Video, deleteVideoAPI } from '../../../api/destinationsApi';
 import { useDispatch, useSelector } from 'react-redux';
-import { setVideos } from '../../../Redux/videosSlice';
+import { setVideos, deleteVideo } from '../../../Redux/videosSlice';
 import { RootState } from '../../../Redux/store';
 import { auth } from '@/firebaseConfig';
 
@@ -78,6 +78,17 @@ export default function Explore() {
     });
   };
 
+  const handleDeleteVideo = async (videoId: string) => {
+    try {
+      // Assuming you have a deleteVideo function in your API
+      await deleteVideoAPI(videoId);
+      dispatch(deleteVideo(videoId));
+      console.log('Video deleted:', videoId);
+    } catch (error) {
+      console.error('Failed to delete video:', error);
+    }
+  };
+
   return (
     <>
       <StackHeader detail={'Explore'} />
@@ -92,6 +103,7 @@ export default function Explore() {
           videos={videos} 
           onVideoPress={handleVideoPress}  
           onRefresh={handleRefresh}
+          onDeleteVideo={handleDeleteVideo}
         />
       </View>
     </>

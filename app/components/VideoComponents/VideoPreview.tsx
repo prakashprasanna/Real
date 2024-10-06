@@ -1,19 +1,24 @@
 import React, { useRef, useEffect } from 'react';
-import { TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { TouchableOpacity, StyleSheet, Dimensions, View } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/Redux/store';
 import { setCurrentIndex } from '@/Redux/videosSlice';
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface VideoPreviewProps {
   uri: string;
   index: number;
+  isSelected?: boolean;
+  onLongPress?: () => void;
+  onPress: () => void;
+
 }
 
 const { width } = Dimensions.get('window');
 
-export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
+export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelected, onLongPress, onPress }) => {
   const videoRef = useRef<Video>(null);
   const router = useRouter();
   const dispatch = useDispatch();
@@ -32,13 +37,16 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
   }, []);
 
   const handlePress = () => {
+    if (isSelected !== undefined) {
+      // If in selection mode, don't navigate
+      return;
+    }
+
     console.log('Video clicked:', index);
     console.log('Current videos:', videos);
 
-    // Set the current index to the clicked video's index
     dispatch(setCurrentIndex(index));
 
-    // Create a new array with the clicked video first, followed by the rest
     const reorderedVideos = [
       videos[index],
       ...videos.slice(0, index),
@@ -47,18 +55,22 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
 
     console.log('Reordered videos:', reorderedVideos);
 
-    // Navigate to the SwipeableVideoFeedScreen
     router.push({
       pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
       params: {
         videos: reorderedVideos.map(video => video.downloadURL),
-        initialIndex: 0, // Always start with the first video (which is now the clicked one)
+        initialIndex: 0,
       },
     });
   };
 
+  
   return (
-    <TouchableOpacity onPress={handlePress} style={styles.container}>
+    <TouchableOpacity 
+      onPress={handlePress} 
+      onLongPress={onLongPress}
+      style={[styles.container, isSelected && styles.selectedContainer]}
+    >
       <Video
         ref={videoRef}
         source={{ uri }}
@@ -68,6 +80,11 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index }) => {
         shouldPlay={true}
         isMuted={true}
       />
+      {isSelected && (
+        <View style={styles.selectedOverlay}>
+          <MaterialIcons name="check-circle" size={40} color="#6bb2be" />
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -82,9 +99,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#6bb2be',
   },
+  selectedContainer: {
+    borderColor: '#6bb2be',
+    borderWidth: 3,
+  },
   video: {
     width: '100%',
     height: '100%',
+  },
+  selectedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

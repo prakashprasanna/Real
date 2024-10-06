@@ -37,8 +37,14 @@ const videosSlice = createSlice({
     setCurrentIndex: (state, action: PayloadAction<number>) => {
       state.currentIndex = action.payload;
     },
+    deleteVideo: (state, action: PayloadAction<string>) => {
+      state.videos = state.videos.filter(video => video.id !== action.payload);
+      if (state.currentIndex >= state.videos.length) {
+        state.currentIndex = Math.max(0, state.videos.length - 1);
+      }
+    },
   },
 });
 
-export const { setVideos, setLoading, setCurrentIndex } = videosSlice.actions;
+export const { setVideos, setLoading, setCurrentIndex, deleteVideo } = videosSlice.actions;
 export default videosSlice.reducer;

@@ -1,6 +1,6 @@
 import { storage } from '../firebaseConfig';
-import { ref, listAll, getDownloadURL, getStorage } from 'firebase/storage';
-import { collection, getFirestore, query, where, getDocs, QueryDocumentSnapshot } from 'firebase/firestore';
+import { ref, listAll, getDownloadURL, getStorage, deleteObject } from 'firebase/storage';
+import { collection, getFirestore, query, where, getDocs, QueryDocumentSnapshot, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 export interface Video {
@@ -103,6 +103,43 @@ export const fetchVideos = async (): Promise<Video[]> => {
       console.error('[fetchVideos] Error message:', error.message);
       console.error('[fetchVideos] Error stack:', error.stack);
     }
+    throw error;
+  }
+};
+
+export const deleteVideoAPI = async (videoId: string): Promise<void> => {
+  try {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('No user logged in');
+    }
+
+    const db = getFirestore();
+    const storage = getStorage();
+
+    // Delete document from Firestore
+    const videoRef = doc(db, 'videos', videoId);
+    const videoDoc = await getDoc(videoRef);
+    
+    if (!videoDoc.exists()) {
+      throw new Error('Video not found');
+    }
+
+    const videoData = videoDoc.data();
+    if (videoData.uploadedBy !== currentUser.uid) {
+      throw new Error('Unauthorized to delete this video');
+    }
+
+    await deleteDoc(videoRef);
+
+    // Delete file from Storage
+    const storageRef = ref(storage, `videos/${currentUser.uid}/${videoData.filename}`);
+    await deleteObject(storageRef);
+
+    console.log('Video deleted successfully');
+  } catch (error) {
+    console.error('Error deleting video:', error);
     throw error;
   }
 };
