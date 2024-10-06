@@ -9,6 +9,9 @@ import { dirname, join } from 'path';
 import fs from 'fs/promises';  
 import { createRequire } from 'module';
 import path from 'path';
+import { EventEmitter } from 'events';
+import os from 'os';
+
 
 const require = createRequire(import.meta.url);
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
@@ -33,7 +36,23 @@ const stripe = Stripe(secretKey, {
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-const upload = multer({ dest: 'uploads/' });
+// Change multer configuration to use disk storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, os.tmpdir()) // Use system's temp directory
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname)
+  }
+})
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 600 * 1024 * 1024 // 1000 MB
+  }
+});
+
 
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
@@ -81,37 +100,52 @@ app.post('/compress-video', upload.single('video'), async (req, res) => {
 
     ffmpeg(inputPath)
       .outputOptions([
-        '-c:v libx264',        // Use H.264 codec
-        '-profile:v baseline', // Use baseline profile for better compatibility
-        '-level 3.0',          // Set level to 3.0 for wider device support
-        '-pix_fmt yuv420p',    // Use yuv420p pixel format for better compatibility
-        '-crf 23',             // Constant Rate Factor (adjust for quality vs file size)
-        '-preset medium',      // Encoding speed preset
-        '-maxrate 1M',         // Maximum bitrate
-        '-bufsize 2M',         // Buffer size
-        '-vf scale=720:-2',    // Scale to 720p width, maintain aspect ratio
-        '-c:a aac',            // Use AAC for audio
-        '-b:a 128k',           // Audio bitrate
-        '-movflags +faststart' // Optimize for web playback
+        '-c:v libx264',
+        '-profile:v baseline',
+        '-level 3.0',
+        '-pix_fmt yuv420p',
+        '-crf 23',
+        '-preset medium',
+        '-maxrate 1M',
+        '-bufsize 2M',
+        '-vf scale=720:-2',
+        '-c:a aac',
+        '-b:a 128k',
+        '-movflags +faststart'
       ])
       .toFormat('mp4')
       .output(outputPath)
+      .on('progress', (progress) => {
+        if (progress.percent) {
+          res.write(`data: ${JSON.stringify({ percent: Math.round(progress.percent) })}\n\n`);
+        }
+      })
       .on('end', async () => {
         console.log('Compression finished');
         const filename = path.basename(outputPath);
-        res.json({ compressedVideoFilename: filename });
+        res.write(`data: ${JSON.stringify({ compressedVideoFilename: filename })}\n\n`);
+        res.end();
         await fs.unlink(inputPath);
       })
       .on('error', async (err) => {
         console.error('Error during compression:', err);
-        res.status(500).send('Error compressing video');
+        res.write(`data: ${JSON.stringify({ error: 'Error compressing video' })}\n\n`);
+        res.end();
         await fs.unlink(inputPath);
       })
       .run();
+
   } catch (error) {
     console.error('Error setting up compression:', error);
-    res.status(500).send('Error setting up video compression');
-    await fs.unlink(inputPath);
+    res.write(`data: ${JSON.stringify({ error: 'Error setting up video compression' })}\n\n`);
+    res.end();
+    if (inputPath) {
+      try {
+        await fs.unlink(inputPath);
+      } catch (unlinkError) {
+        console.error('Error deleting input file:', unlinkError);
+      }
+    }
   }
 });
 

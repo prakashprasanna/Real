@@ -1,21 +1,21 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { getFirestore, doc, setDoc, serverTimestamp, deleteDoc, Timestamp, getDoc, connectFirestoreEmulator, runTransaction } from 'firebase/firestore';
+import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as FileSystem from 'expo-file-system';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { API_URL, checkHealth } from '../../api/CheckHealth';
-import { getApp, setLogLevel } from 'firebase/app';
+import { setLogLevel } from 'firebase/app';
 import { firestore } from '@/firebaseConfig';
 import { useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
 import { setLoading, setVideos } from '@/Redux/videosSlice';
 import { fetchVideos } from '@/api/destinationsApi';
+import EventSource from 'react-native-event-source';
 
-// Set Firebase log level to error
 setLogLevel('error');
 
 const generateUniqueId = () => `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -23,8 +23,11 @@ const generateUniqueId = () => `${Date.now()}-${Math.floor(Math.random() * 1000)
 export function PickAndUploadVideo() {
   const [video, setVideo] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [compressionProgress, setCompressionProgress] = useState(0);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [progressKey, setProgressKey] = useState(0);
+
   const videoRef = useRef<Video>(null);
   const router = useRouter();
   const dispatch = useDispatch();
@@ -32,9 +35,9 @@ export function PickAndUploadVideo() {
   const storage = getStorage();
   const auth = getAuth();
 
-
   const pickVideo = async () => {
     setUploadProgress(0);
+    setCompressionProgress(0);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
@@ -44,7 +47,20 @@ export function PickAndUploadVideo() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setVideo(result.assets[0].uri);
+        const videoUri = result.assets[0].uri;
+        
+        const fileInfo = await FileSystem.getInfoAsync(videoUri);
+        const fileSizeInBytes = 'size' in fileInfo ? fileInfo.size : 0;
+        const fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+        
+        console.log(`Selected video size: ${fileSizeInMB.toFixed(2)} MB`);
+        const MAX_FILE_SIZE_MB = 600;
+        if (fileSizeInMB > MAX_FILE_SIZE_MB) {
+          Alert.alert('File Too Large', `The selected video is ${fileSizeInMB.toFixed(2)} MB. Please choose a video smaller than ${MAX_FILE_SIZE_MB} MB.`);
+          return;
+        }
+
+        setVideo(videoUri);
       }
     } catch (error) {
       console.error('Error picking video:', error);
@@ -68,16 +84,16 @@ export function PickAndUploadVideo() {
       Alert.alert('Error', 'You must be logged in to upload a video.');
       return;
     }
-  
+
     const filename = `${videoId}.mp4`;
     const storageRef = ref(storage, `videos/${userId}/${filename}`);
     const videoRef = doc(firestore, 'videos', videoId);
-  
+
     console.log('Starting video upload process...');
     console.log('Video URI:', videoUri);
     console.log('Video ID:', videoId);
     console.log('User ID:', userId);
-  
+
     try {
       console.log('Creating initial Firestore document...');
       const initialData = {
@@ -89,46 +105,24 @@ export function PickAndUploadVideo() {
         email: auth.currentUser?.email
       };
       console.log('Initial data:', JSON.stringify(initialData));
-  
-      console.log('Starting Firestore write operation...');
-      const setDocPromise = setDoc(doc(firestore, 'videos', videoId), initialData);
-      const timeoutPromise = new Promise((_, reject) => {
-        const timeout = 60000; // 60 seconds
-        const interval = 5000; // Log every 5 seconds
-        let elapsed = 0;
-        const timer = setInterval(() => {
-          elapsed += interval;
-          console.log(`Firestore write operation in progress... (${elapsed / 1000}s elapsed)`);
-          if (elapsed >= timeout) {
-            clearInterval(timer);
-            reject(new Error('Firestore write operation timed out'));
-          }
-        }, interval);
-        setDocPromise.then(() => clearInterval(timer));
-      });
-  
-      try {
-        await Promise.race([setDocPromise, timeoutPromise]);
-        console.log('Firestore write operation completed successfully');
-      } catch (error) {
-        console.error('Firestore write operation failed:', error);
-        throw error;
-      }
-  
+
+      await setDoc(doc(firestore, 'videos', videoId), initialData);
+      console.log('Firestore write operation completed successfully');
+
       console.log('Fetching video data...');
       const response = await fetch(videoUri);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       console.log('Video data fetched successfully');
-  
+
       console.log('Creating blob...');
       const blob = await response.blob();
       console.log('Blob created, size:', blob.size);
-  
+
       console.log('Starting upload task...');
       const uploadTask = uploadBytesResumable(storageRef, blob);
-  
+
       uploadTask.on(
         'state_changed',
         (snapshot) => {
@@ -171,7 +165,7 @@ export function PickAndUploadVideo() {
           );
         }
       );
-  
+
       console.log('Upload task initiated');
     } catch (error) {
       console.error('Error in uploadVideo:', error);
@@ -191,6 +185,77 @@ export function PickAndUploadVideo() {
         console.error('Failed to update error status in Firestore:', firestoreError);
       }
     }
+  };
+
+
+  const updateCompressionProgress = useCallback((progress: number) => {
+    console.log('Compression progress:', progress);
+    setCompressionProgress(prev => {
+      if (prev !== progress) {
+        setProgressKey(key => key + 1);
+        return progress;
+      }
+      return prev;
+    });
+  }, []);
+
+  const compressVideo = async (videoUri: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('video', {
+        uri: videoUri,
+        type: 'video/mp4',
+        name: 'video.mp4'
+      } as any);
+  
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_URL}/compress-video`, true);
+      xhr.setRequestHeader('Accept', 'text/event-stream');
+  
+      let lastProgress = 0;
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === 3) {
+          // Process partial data
+          const newData = xhr.responseText.substr(lastProgress);
+          lastProgress = xhr.responseText.length;
+  
+          const lines = newData.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.substr(6));
+                if (data.percent !== undefined) {
+                  updateCompressionProgress(data.percent);
+                } else if (data.compressedVideoFilename) {
+                  console.log(`Compression complete. File: ${data.compressedVideoFilename}`);
+                  updateCompressionProgress(100);
+                  resolve(`${API_URL}/compressed/${data.compressedVideoFilename}`);
+                  return;
+                } else if (data.error) {
+                  console.log(`Compression error: ${data.error}`);
+                  reject(new Error(data.error));
+                  return;
+                }
+              } catch (error) {
+                console.error('Error parsing SSE data:', error);
+              }
+            }
+          }
+        } else if (xhr.readyState === 4) {
+          if (xhr.status !== 200) {
+            console.error('Server responded with status:', xhr.status);
+            reject(new Error(`Server responded with status: ${xhr.status}`));
+          }
+        }
+      };
+  
+      xhr.onerror = () => {
+        console.error('Request failed');
+        reject(new Error('Network request failed'));
+      };
+  
+      xhr.send(formData);
+    });
   };
 
   const handleUpload = async (videoUri: string) => {
@@ -214,46 +279,10 @@ export function PickAndUploadVideo() {
     console.log('Video URI:', videoUri);
 
     try {
-      // Send the video to the server for compression
-      console.log('Sending video to server for compression...');
-      const serverUrl = `${API_URL}/compress-video`;
-      console.log('Full server URL:', serverUrl);
-
-      const response = await FileSystem.uploadAsync(serverUrl, videoUri, {
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        fieldName: 'video',
-        mimeType: 'video/mp4',
-      });
-
-      console.log('Response status:', response.status);
-      console.log('Response body:', response.body);
-
-      if (response.status !== 200) {
-        throw new Error(`Server compression failed with status ${response.status}`);
-      }
-
-      const responseData = JSON.parse(response.body);
-      const compressedVideoFilename = responseData.compressedVideoFilename;
-
-      console.log('Video compressed successfully on server');
-      console.log('Compressed video filename:', compressedVideoFilename);
-
-      // Download the compressed video from the server
-      const compressedVideoUri = `${FileSystem.documentDirectory}compressed_video.mp4`;
-      console.log('Downloading compressed video to:', compressedVideoUri);
-
-      const downloadResult = await FileSystem.downloadAsync(
-        `${API_URL}/compressed/${compressedVideoFilename}`,
-        compressedVideoUri
-      );
-
-      console.log('Download result:', downloadResult);
-
-      if (downloadResult.status !== 200) {
-        throw new Error(`Failed to download compressed video. Status: ${downloadResult.status}`);
-      }
-
-      console.log('Compressed video downloaded successfully');
+      // Compress the video
+      console.log('Compressing video...');
+      const compressedVideoUri = await compressVideo(videoUri);
+      console.log('Video compressed successfully');
 
       // Generate a thumbnail
       console.log('Attempting to generate thumbnail...');
@@ -266,7 +295,6 @@ export function PickAndUploadVideo() {
         console.log('Thumbnail generated:', thumbnailUri);
       } catch (thumbnailError) {
         console.warn('Failed to generate thumbnail:', thumbnailError);
-        // Continue without a thumbnail
       }
 
       // Upload the compressed video to Firebase
@@ -275,11 +303,7 @@ export function PickAndUploadVideo() {
 
       console.log('Video uploaded successfully to Firebase');
       setUploadProgress(0);
-
-      // Clean up the local compressed video file
-      console.log('Cleaning up local compressed video file...');
-      await FileSystem.deleteAsync(compressedVideoUri);
-      console.log('Local compressed video file deleted');
+      setCompressionProgress(0);
 
     } catch (error) {
       console.error('Error in handleUpload:', error);
@@ -313,10 +337,17 @@ export function PickAndUploadVideo() {
         </View>
       )}
 
+      {compressionProgress > 0 && compressionProgress < 100 && (
+        <View style={styles.progressContainer}>
+          <View style={[styles.progressBar, { width: `${compressionProgress}%` }]} />
+          <Text style={styles.progressText}>Compressing: {compressionProgress.toFixed(2)}%</Text>
+        </View>
+      )}
+
       {uploadProgress > 0 && uploadProgress < 100 && (
         <View style={styles.progressContainer}>
           <View style={[styles.progressBar, { width: `${uploadProgress}%` }]} />
-          <Text style={styles.progressText}>{uploadProgress.toFixed(2)}%</Text>
+          <Text style={styles.progressText}>Uploading: {uploadProgress.toFixed(2)}%</Text>
         </View>
       )}
 
