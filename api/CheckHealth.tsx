@@ -2,9 +2,9 @@ import { Platform } from "react-native";
 
 export const API_URL = __DEV__ 
   ? Platform.OS === 'android'
-    ? 'http://192.168.68.115:3000'
-    : 'http://localhost:3000'
-  : 'https://your-production-api-url.com';
+    ? 'http://192.168.68.115:8080'
+    : 'http://localhost:8080'
+  : 'https://real-9f3b8.ts.r.appspot.com';
 
 export const checkHealth = async (): Promise<boolean> => {
   try {

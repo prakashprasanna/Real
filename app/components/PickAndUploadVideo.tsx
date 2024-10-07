@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Video, ResizeMode } from 'expo-av';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { doc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as FileSystem from 'expo-file-system';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
 import { setLoading, setVideos } from '@/Redux/videosSlice';
 import { fetchVideos } from '@/api/destinationsApi';
-import EventSource from 'react-native-event-source';
+import { Asset } from 'expo-asset';
 
 setLogLevel('error');
 
@@ -26,8 +26,8 @@ export function PickAndUploadVideo() {
   const [compressionProgress, setCompressionProgress] = useState(0);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [progressKey, setProgressKey] = useState(0);
   const [isCheckingFileSize, setIsCheckingFileSize] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   const videoRef = useRef<Video>(null);
   const router = useRouter();
@@ -36,10 +36,42 @@ export function PickAndUploadVideo() {
   const storage = getStorage();
   const auth = getAuth();
 
+  const copyVideoToLocalUri = async (uri: string): Promise<string> => {
+    const fileInfo = await FileSystem.getInfoAsync(uri);
+    console.log('Original file info:', fileInfo);
+  
+    if (!fileInfo.exists) {
+      throw new Error(`File does not exist: ${uri}`);
+    }
+  
+    const newUri = FileSystem.documentDirectory + 'tempVideo.mp4';
+    await FileSystem.copyAsync({
+      from: uri,
+      to: newUri
+    });
+  
+    const newFileInfo = await FileSystem.getInfoAsync(newUri);
+    console.log('New file info:', newFileInfo);
+  
+    return newUri;
+  };
+
+  const checkVideoPlayability = async (uri: string): Promise<boolean> => {
+    try {
+      const asset = await Asset.fromURI(uri);
+      await asset.downloadAsync();
+      return true; // If download is successful, assume the video is loaded
+    } catch (error) {
+      console.error('Error checking video playability:', error);
+      return false;
+    }
+  };
+
   const pickVideo = async () => {
     setUploadProgress(0);
     setCompressionProgress(0);
     setIsCheckingFileSize(true);
+    setVideoError(null);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
@@ -62,7 +94,17 @@ export function PickAndUploadVideo() {
           return;
         }
 
-        setVideo(videoUri);
+        const isPlayable = await checkVideoPlayability(videoUri);
+        if (!isPlayable) {
+          setVideoError('The selected video format is not supported or the file may be corrupted.');
+          Alert.alert('Video Error', 'The selected video cannot be played. Please choose another video.');
+          return;
+        }
+
+        const localUri = await copyVideoToLocalUri(videoUri);
+        console.log('Copied video to local URI:', localUri);
+    
+        setVideo(localUri);
       }
     } catch (error) {
       console.error('Error picking video:', error);
@@ -84,22 +126,14 @@ export function PickAndUploadVideo() {
   const uploadVideo = async (videoUri: string, videoId: string) => {
     const userId = auth.currentUser?.uid;
     if (!userId) {
-      console.error('No user ID found');
-      Alert.alert('Error', 'You must be logged in to upload a video.');
-      return;
+      throw new Error('No user ID found');
     }
-
+  
     const filename = `${videoId}.mp4`;
     const storageRef = ref(storage, `videos/${userId}/${filename}`);
     const videoRef = doc(firestore, 'videos', videoId);
-
-    console.log('Starting video upload process...');
-    console.log('Video URI:', videoUri);
-    console.log('Video ID:', videoId);
-    console.log('User ID:', userId);
-
+  
     try {
-      console.log('Creating initial Firestore document...');
       const initialData = {
         filename,
         uploadedBy: userId,
@@ -108,224 +142,334 @@ export function PickAndUploadVideo() {
         uploadStatus: 'pending',
         email: auth.currentUser?.email
       };
-      console.log('Initial data:', JSON.stringify(initialData));
-
+  
       await setDoc(doc(firestore, 'videos', videoId), initialData);
-      console.log('Firestore write operation completed successfully');
-
-      console.log('Fetching video data...');
+  
       const response = await fetch(videoUri);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      console.log('Video data fetched successfully');
-
-      console.log('Creating blob...');
       const blob = await response.blob();
-      console.log('Blob created, size:', blob.size);
-
-      console.log('Starting upload task...');
+  
       const uploadTask = uploadBytesResumable(storageRef, blob);
-
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(progress);
-          console.log(`Upload progress: ${progress.toFixed(2)}%`);
-        },
-        (error) => {
-          console.error('Upload error:', error);
-          Alert.alert('Upload Error', `Failed to upload video: ${error.message}`);
-          setUploadProgress(0);
-          setDoc(videoRef, { uploadStatus: 'error', errorMessage: error.message }, { merge: true });
-        },
-        async () => {
-          console.log('Upload completed successfully');
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          console.log('Download URL obtained:', downloadURL);
-          await setDoc(videoRef, { 
-            downloadURL, 
-            uploadStatus: 'complete' 
-          }, { merge: true });
-          console.log('Video metadata updated with ID:', videoId);
-          Alert.alert(
-            'Success', 
-            'Video uploaded successfully',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  dispatch(setLoading(true));
-                  router.push('/(tabs)/explore');
-                  setTimeout(() => {
-                    fetchVideosIfNeeded().then(() => {
-                      dispatch(setLoading(false));
-                    });
-                  }, 0);
-                }
-              }
-            ]
-          );
-        }
-      );
-
-      console.log('Upload task initiated');
+  
+      return new Promise<string>((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(progress);
+          },
+          (error) => {
+            console.error('Upload error:', error);
+            setUploadProgress(0);
+            setDoc(videoRef, { uploadStatus: 'error', errorMessage: error.message }, { merge: true });
+            reject(error);
+          },
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            await setDoc(videoRef, { 
+              downloadURL, 
+              uploadStatus: 'complete' 
+            }, { merge: true });
+            resolve(downloadURL);
+          }
+        );
+      });
     } catch (error) {
       console.error('Error in uploadVideo:', error);
+      setUploadProgress(0);
+      await setDoc(videoRef, { 
+        uploadStatus: 'error', 
+        errorMessage: error instanceof Error ? error.message : 'Unknown error' 
+      }, { merge: true });
+      throw error;
+    }
+  };
+
+  const getUploadUrl = async (filename: string) => {
+    try {
+      const response = await fetch(`${API_URL}/get-upload-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filename }),
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get upload URL: ${response.status} ${response.statusText}`);
+      }
+      
+      try {
+        const data = JSON.parse(responseText);
+        console.log('Parsed response:', data);
+        return data;
+      } catch (parseError) {
+        console.error('Error parsing JSON:', parseError);
+        throw new Error('Failed to parse server response');
+      }
+    } catch (error) {
+      console.error('Error getting upload URL:', error);
+      throw error;
+    }
+  };
+
+  const uploadToCloudStorage = async (uploadUrl: string, videoUri: string) => {
+    console.log('uploadToCloudStorage uploadUrl', uploadUrl);
+    console.log('uploadToCloudStorage videoUri', videoUri);
+    try {
+      console.log('Starting upload to Cloud Storage...');
+      console.log('Upload URL:', uploadUrl);
+      console.log('Video URI:', videoUri);
+  
+      const fileInfo = await FileSystem.getInfoAsync(videoUri);
+      console.log('File info:', fileInfo);
+  
+      if (!fileInfo.exists) {
+        throw new Error('File does not exist');
+      }
+  
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, videoUri, {
+        httpMethod: 'PUT',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: {
+          'Content-Type': 'video/mp4',
+        },
+      });
+  
+      console.log('Upload result:', uploadResult);
+  
+      if (uploadResult.status !== 200) {
+        throw new Error(`Upload failed with status ${uploadResult.status}`);
+      }
+  
+      console.log('Upload to Cloud Storage complete');
+
+      const fileInfoAfterUpload = await FileSystem.getInfoAsync(videoUri);
+      console.log('File info after upload:', fileInfoAfterUpload);
+    
+      if (!fileInfoAfterUpload.exists) {
+        throw new Error(`File no longer exists after upload: ${videoUri}`);
+      }
+    
+      return videoUri;
+    } catch (error) {
+      console.error('Error uploading to Cloud Storage:', error);
       if (error instanceof Error) {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
       }
-      Alert.alert('Upload Error', `Failed to process video for upload: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setUploadProgress(0);
-      try {
-        await setDoc(videoRef, { 
-          uploadStatus: 'error', 
-          errorMessage: error instanceof Error ? error.message : 'Unknown error' 
-        }, { merge: true });
-        console.log('Error status updated in Firestore');
-      } catch (firestoreError) {
-        console.error('Failed to update error status in Firestore:', firestoreError);
-      }
+      throw error;
     }
   };
 
+  const generateThumbnail = async (videoUri: string): Promise<string> => {
+    console.log('Starting thumbnail generation for:', videoUri);
+    try {
+      const thumbnail = await VideoThumbnails.getThumbnailAsync(videoUri, {
+        time: 0,
+      });
+      console.log('Thumbnail generated successfully:', thumbnail.uri);
+      return thumbnail.uri;
+    } catch (error) {
+      console.error('Error generating thumbnail:', error);
+      throw error;
+    }
+  };
 
-  const updateCompressionProgress = useCallback((progress: number) => {
-    console.log('Compression progress:', progress); // Keep this
-    console.warn('Compression progress (warn):', progress); // Add this
-    setCompressionProgress(prev => {
-      console.log('Previous progress:', prev); // Add this
-      if (prev !== progress) {
-        setProgressKey(key => {
-          console.log('Updating progress key:', key + 1); // Add this
-          return key + 1;
-        });
-        return progress;
+  const compressVideo = async (videoFile: string) => {
+    console.log('Starting video compression...', videoFile);
+    const formData = new FormData();
+    
+    formData.append('video', {
+      uri: videoFile,
+      type: 'video/mp4',
+      name: 'video.mp4',
+    } as any);
+  
+    try {
+      console.log('Sending compression request to:', `${API_URL}/compress-video`);
+      const response = await fetch(`${API_URL}/compress-video`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+  
+      console.log('Compression response status:', response.status);
+      console.log('Compression response headers:', response.headers);
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
-      return prev;
-    });
-  }, []);
-
-  const compressVideo = async (videoUri: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const formData = new FormData();
-      formData.append('video', {
-        uri: videoUri,
-        type: 'video/mp4',
-        name: 'video.mp4'
-      } as any);
   
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${API_URL}/compress-video`, true);
-      xhr.setRequestHeader('Accept', 'text/event-stream');
+      // Handle the response as text instead of using a reader
+      const responseText = await response.text();
+      console.log('Full response text:', responseText);
   
-      let lastProgress = 0;
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState === 3) {
-          // Process partial data
-          const newData = xhr.responseText.substr(lastProgress);
-          lastProgress = xhr.responseText.length;
+      const events = responseText.split('\n\n');
+      let lastEvent;
   
-          const lines = newData.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                if (data.percent !== undefined) {
-                  updateCompressionProgress(data.percent);
-                } else if (data.compressedVideoFilename) {
-                  console.log(`Compression complete. File: ${data.compressedVideoFilename}`);
-                  updateCompressionProgress(100);
-                  resolve(`${API_URL}/compressed/${data.compressedVideoFilename}`);
-                  return;
-                } else if (data.error) {
-                  console.log(`Compression error: ${data.error}`);
-                  reject(new Error(data.error));
-                  return;
-                }
-              } catch (error) {
-                console.error('Error parsing SSE data:', error);
-              }
+      for (const event of events) {
+        if (event.startsWith('data: ')) {
+          try {
+            const eventData = JSON.parse(event.slice(6));
+            console.log('Received event:', eventData);
+            lastEvent = eventData;
+  
+            switch (eventData.status) {
+              case 'started':
+                console.log('Compression started');
+                break;
+              case 'progress':
+                console.log(`Compression progress: ${eventData.percent}%`);
+                setCompressionProgress(eventData.percent);
+                break;
+              case 'completed':
+                console.log('Compression completed', eventData.compressedVideoUrl);
+                return eventData.compressedVideoUrl;
+              case 'error':
+                console.error('Compression error:', eventData.error);
+                throw new Error(eventData.error);
             }
-          }
-        } else if (xhr.readyState === 4) {
-          if (xhr.status !== 200) {
-            console.error('Server responded with status:', xhr.status);
-            reject(new Error(`Server responded with status: ${xhr.status}`));
+          } catch (parseError) {
+            console.error('Error parsing event data:', parseError, 'Raw data:', event);
           }
         }
-      };
-  
-      xhr.onerror = () => {
-        console.error('Request failed');
-        reject(new Error('Network request failed'));
-      };
-  
-      xhr.send(formData);
-    });
-  };
-
-  const handleUpload = async (videoUri: string) => {
-    const isHealthy = await checkHealth();
-    if (!isHealthy) {
-      console.error('Server is not healthy');
-      Alert.alert('Error', 'Server is not healthy. Please try again later.');
-      return;
-    }
-
-    if (!videoUri) {
-      console.log('No video selected');
-      Alert.alert('Error', 'Please select a video first.');
-      return;
-    }
-
-    const videoId = generateUniqueId();
-    setIsCompressing(true);
-    setIsUploading(true);
-    console.log('Starting upload process...');
-    console.log('Video URI:', videoUri);
-
-    try {
-      // Compress the video
-      console.log('Compressing video...');
-      const compressedVideoUri = await compressVideo(videoUri);
-      console.log('Video compressed successfully');
-
-      // Generate a thumbnail
-      console.log('Attempting to generate thumbnail...');
-      let thumbnailUri = null;
-      try {
-        const thumbnailResult = await VideoThumbnails.getThumbnailAsync(compressedVideoUri, {
-          time: 1500,
-        });
-        thumbnailUri = thumbnailResult.uri;
-        console.log('Thumbnail generated:', thumbnailUri);
-      } catch (thumbnailError) {
-        console.warn('Failed to generate thumbnail:', thumbnailError);
       }
-
-      // Upload the compressed video to Firebase
-      console.log('Uploading compressed video to Firebase...');
-      await uploadVideo(compressedVideoUri, videoId);
-
-      console.log('Video uploaded successfully to Firebase');
-      setUploadProgress(0);
-      setCompressionProgress(0);
-
+  
+      if (lastEvent && lastEvent.status === 'completed') {
+        return lastEvent.compressedVideoUrl;
+      }
+  
+      throw new Error('Compression did not complete successfully');
     } catch (error) {
-      console.error('Error in handleUpload:', error);
+      console.error('Error during compression:', error);
       if (error instanceof Error) {
+        console.error('Error name:', error.name);
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
       }
-      Alert.alert('Upload Error', `Failed to upload video: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
+    }
+  };
+  
+  const generateThumbnailWithTimeout = async (videoUri: string, timeoutMs = 30000): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Thumbnail generation timed out'));
+      }, timeoutMs);
+  
+      generateThumbnail(videoUri)
+        .then((thumbnailUri) => {
+          clearTimeout(timeoutId);
+          resolve(thumbnailUri);
+        })
+        .catch((error) => {
+          clearTimeout(timeoutId);
+          reject(error);
+        });
+    });
+  };
+  
+  const handleUpload = async (videoUri: string) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+    setCompressionProgress(0);
+  
+    try {
+      console.log('Starting upload process...');
+      console.log('Original video URI:', videoUri);
+  
+      const isHealthy = await checkHealth();
+      if (!isHealthy) {
+        throw new Error('Server is not healthy');
+      }
+  
+      const videoId = generateUniqueId();
+      console.log('Generated video ID:', videoId);
+  
+      const { uploadUrl, filename } = await getUploadUrl(videoId);
+      console.log('Got upload URL:', uploadUrl);
+  
+      const uploadedVideoUri = await uploadToCloudStorage(uploadUrl, videoUri);
+      console.log('Video uploaded to Cloud Storage');
+  
+      console.log('Starting video compression...');
+      let thumbnailUri = null;
+      const compressedVideoUrl = await compressVideo(uploadedVideoUri);
+      console.log('Video compressed successfully');
+      console.log('Compressed video URL:', compressedVideoUrl);
+      
+      console.log('Uploading compressed video to Firebase...');
+      try {
+        const downloadURL = await uploadVideo(compressedVideoUrl, videoId);
+        console.log('Compressed video uploaded to Firebase');
+        console.log('Download URL:', downloadURL);
+  
+        console.log('Updating Firestore document...');
+        await updateFirestoreDocument(videoId, downloadURL, thumbnailUri);
+        console.log('Firestore document updated successfully');
+  
+        console.log('Fetching updated video list...');
+        dispatch(setLoading(true));
+        await fetchVideosIfNeeded();
+        dispatch(setLoading(false));
+        setVideo(null); 
+  
+        Alert.alert(
+          'Success', 
+          'Video uploaded successfully',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                dispatch(setLoading(true));
+                router.push('/(tabs)/explore');
+                setTimeout(() => {
+                  fetchVideosIfNeeded().then(() => {
+                    dispatch(setLoading(false));
+                  });
+                }, 0);
+              }
+            }
+          ]
+        );
+      } catch (uploadError) {
+        console.error('Error uploading to Firebase:', uploadError);
+        Alert.alert('Upload Error', `Failed to upload video to Firebase: ${uploadError.message}`);
+      }
+  
+    } catch (error) {
+      console.error('Error in handleUpload:', error);
+      Alert.alert('Upload Error', `Failed to upload video: ${error.message}`);
     } finally {
-      setIsCompressing(false);
       setIsUploading(false);
-      setVideo(null);
-      console.log('Upload process completed');
+      setUploadProgress(0);
+      setCompressionProgress(0);
+    }
+  };
+
+  const updateFirestoreDocument = async (videoId: string, downloadURL: string, thumbnailUri: string | null) => {
+    const videoRef = doc(firestore, 'videos', videoId);
+    try {
+      await updateDoc(videoRef, {
+        downloadURL,
+        thumbnailURL: thumbnailUri,
+        updatedAt: Timestamp.now(),
+        uploadStatus: 'complete',
+        processingStatus: 'complete',
+      });
+    } catch (error) {
+      console.error('Error updating Firestore document:', error);
+      throw error;
     }
   };
 
@@ -339,14 +483,23 @@ export function PickAndUploadVideo() {
       )}
 
       {video ? (
-        <Video
-          ref={videoRef}
-          source={{ uri: video }}
-          style={styles.video}
-          useNativeControls
-          resizeMode={ResizeMode.CONTAIN}
-          isLooping
-        />
+        <>
+          <Video
+            ref={videoRef}
+            source={{ uri: video }}
+            style={styles.video}
+            useNativeControls
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping
+            onError={(error) => {
+              console.error('Video playback error:', error);
+              setVideoError('Error playing the video. The file may be corrupted or in an unsupported format.');
+            }}
+          />
+          {videoError && (
+            <Text style={styles.errorText}>{videoError}</Text>
+          )}
+        </>
       ) : (
         <View style={styles.placeholderContainer}>
           <Text style={styles.placeholderText}>No video selected</Text>
@@ -367,9 +520,9 @@ export function PickAndUploadVideo() {
         </View>
       )}
 
-<View style={styles.buttonContainer}>
+      <View style={styles.buttonContainer}>
         <TouchableOpacity 
-          style={[styles.button, { marginRight: 30 }, isCheckingFileSize && styles.disabledButton]} 
+          style={[styles.button, isCheckingFileSize && styles.disabledButton]} 
           onPress={pickVideo}
           disabled={isCheckingFileSize}
         >
@@ -472,6 +625,11 @@ const styles = StyleSheet.create({
   overlayText: {
     color: '#fff',
     fontSize: 18,
+    marginTop: 10,
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
     marginTop: 10,
   },
 });
