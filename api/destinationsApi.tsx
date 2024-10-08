@@ -54,11 +54,7 @@ export const fetchVideos = async (): Promise<Video[]> => {
     console.log('[fetchVideos] Firestore and Storage instances obtained');
 
     const videosRef = collection(db, 'videos');
-    const userVideosQuery = query(
-      videosRef, 
-      where('uploadedBy', '==', currentUser.uid),
-      where('processingStatus', '==', 'complete') // Add this line to fetch only completed videos
-    );
+    const userVideosQuery = query(videosRef, where('uploadedBy', '==', currentUser.uid));
     console.log('[fetchVideos] User videos query created');
 
     const querySnapshot = await getDocs(userVideosQuery);
@@ -75,21 +71,25 @@ export const fetchVideos = async (): Promise<Video[]> => {
       const data = doc.data();
       console.log('[fetchVideos] Document data:', JSON.stringify(data, null, 2));
 
-      // Use compressedDownloadURL if available, otherwise use originalDownloadURL
-      const downloadURL = data.compressedDownloadURL || data.originalDownloadURL;
+      if (data.filename) {
+        try {
+          const storageRef = ref(storage, `videos/${currentUser.uid}/${data.filename}`);
+          const downloadURL = await getDownloadURL(storageRef);
 
-      if (downloadURL) {
-        videos.push({
-          id: doc.id,
-          filename: data.filename,
-          downloadURL: downloadURL,
-          uploadedBy: currentUser.uid,
-          uploadedAt: data.uploadedAt ? data.uploadedAt.toDate().toISOString() : null,
-          authorizedViewers: data.authorizedViewers || [],
-        });
-        console.log('[fetchVideos] Video added:', doc.id);
+          videos.push({
+            id: doc.id,
+            filename: data.filename,
+            downloadURL: downloadURL,
+            uploadedBy: currentUser.uid,
+            uploadedAt: data.uploadedAt ? data.uploadedAt.toDate().toISOString() : null,
+            authorizedViewers: data.authorizedViewers || [],
+          });
+          console.log('[fetchVideos] Video added:', doc.id);
+        } catch (error) {
+          console.error(`[fetchVideos] Error getting download URL for ${data.filename}:`, error);
+        }
       } else {
-        console.warn('[fetchVideos] Skipping document due to missing downloadURL:', doc.id);
+        console.warn('[fetchVideos] Skipping document due to missing filename:', doc.id);
       }
     }
 
