@@ -28,6 +28,7 @@ export function PickAndUploadVideo() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCheckingFileSize, setIsCheckingFileSize] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [overallProgress, setOverallProgress] = useState(0);
 
   const videoRef = useRef<Video>(null);
   const router = useRouter();
@@ -123,7 +124,61 @@ export function PickAndUploadVideo() {
     }
   }, [dispatch]);
 
-  const uploadVideo = async (videoUri: string, videoId: string) => {
+  const uploadToCloudStorage = async (uploadUrl: string, videoUri: string, onProgress: (progress: number) => void) => {
+    console.log('uploadToCloudStorage uploadUrl', uploadUrl);
+    console.log('uploadToCloudStorage videoUri', videoUri);
+    try {
+      console.log('Starting upload to Cloud Storage...');
+      console.log('Upload URL:', uploadUrl);
+      console.log('Video URI:', videoUri);
+  
+      const fileInfo = await FileSystem.getInfoAsync(videoUri);
+      console.log('File info:', fileInfo);
+  
+      if (!fileInfo.exists) {
+        throw new Error('File does not exist');
+      }
+  
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, videoUri, {
+        httpMethod: 'PUT',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: {
+          'Content-Type': 'video/mp4',
+        },
+        sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
+        uploadTaskCallback: (totalBytesSent: number, totalBytesExpectedToSend: number) => {
+          const progress = (totalBytesSent / totalBytesExpectedToSend) * 100;
+          onProgress(progress);
+        },
+      });
+  
+      console.log('Upload result:', uploadResult);
+  
+      if (uploadResult.status !== 200) {
+        throw new Error(`Upload failed with status ${uploadResult.status}`);
+      }
+  
+      console.log('Upload to Cloud Storage complete');
+  
+      const fileInfoAfterUpload = await FileSystem.getInfoAsync(videoUri);
+      console.log('File info after upload:', fileInfoAfterUpload);
+    
+      if (!fileInfoAfterUpload.exists) {
+        throw new Error(`File no longer exists after upload: ${videoUri}`);
+      }
+    
+      return videoUri;
+    } catch (error) {
+      console.error('Error uploading to Cloud Storage:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      throw error;
+    }
+  };
+  
+  const uploadVideo = async (videoUrl: string, videoId: string, onProgress: (progress: number) => void) => {
     const userId = auth.currentUser?.uid;
     if (!userId) {
       throw new Error('No user ID found');
@@ -134,6 +189,10 @@ export function PickAndUploadVideo() {
     const videoRef = doc(firestore, 'videos', videoId);
   
     try {
+      console.log('Starting Firebase upload...');
+      console.log('Video URL:', videoUrl);
+      console.log('Video ID:', videoId);
+  
       const initialData = {
         filename,
         uploadedBy: userId,
@@ -144,9 +203,15 @@ export function PickAndUploadVideo() {
       };
   
       await setDoc(doc(firestore, 'videos', videoId), initialData);
+      console.log('Initial Firestore document created');
   
-      const response = await fetch(videoUri);
+      console.log('Fetching video content...');
+      const response = await fetch(videoUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const blob = await response.blob();
+      console.log('Video content fetched successfully');
   
       const uploadTask = uploadBytesResumable(storageRef, blob);
   
@@ -155,16 +220,20 @@ export function PickAndUploadVideo() {
           'state_changed',
           (snapshot) => {
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(progress);
+            console.log(`Upload progress: ${progress.toFixed(2)}%`);
+            onProgress(progress);
           },
           (error) => {
             console.error('Upload error:', error);
-            setUploadProgress(0);
+            console.error('Error code:', error.code);
+            console.error('Error message:', error.message);
             setDoc(videoRef, { uploadStatus: 'error', errorMessage: error.message }, { merge: true });
             reject(error);
           },
           async () => {
+            console.log('Upload completed successfully');
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            console.log('Download URL:', downloadURL);
             await setDoc(videoRef, { 
               downloadURL, 
               uploadStatus: 'complete' 
@@ -175,7 +244,11 @@ export function PickAndUploadVideo() {
       });
     } catch (error) {
       console.error('Error in uploadVideo:', error);
-      setUploadProgress(0);
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       await setDoc(videoRef, { 
         uploadStatus: 'error', 
         errorMessage: error instanceof Error ? error.message : 'Unknown error' 
@@ -218,55 +291,6 @@ export function PickAndUploadVideo() {
     }
   };
 
-  const uploadToCloudStorage = async (uploadUrl: string, videoUri: string) => {
-    console.log('uploadToCloudStorage uploadUrl', uploadUrl);
-    console.log('uploadToCloudStorage videoUri', videoUri);
-    try {
-      console.log('Starting upload to Cloud Storage...');
-      console.log('Upload URL:', uploadUrl);
-      console.log('Video URI:', videoUri);
-  
-      const fileInfo = await FileSystem.getInfoAsync(videoUri);
-      console.log('File info:', fileInfo);
-  
-      if (!fileInfo.exists) {
-        throw new Error('File does not exist');
-      }
-  
-      const uploadResult = await FileSystem.uploadAsync(uploadUrl, videoUri, {
-        httpMethod: 'PUT',
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-        headers: {
-          'Content-Type': 'video/mp4',
-        },
-      });
-  
-      console.log('Upload result:', uploadResult);
-  
-      if (uploadResult.status !== 200) {
-        throw new Error(`Upload failed with status ${uploadResult.status}`);
-      }
-  
-      console.log('Upload to Cloud Storage complete');
-
-      const fileInfoAfterUpload = await FileSystem.getInfoAsync(videoUri);
-      console.log('File info after upload:', fileInfoAfterUpload);
-    
-      if (!fileInfoAfterUpload.exists) {
-        throw new Error(`File no longer exists after upload: ${videoUri}`);
-      }
-    
-      return videoUri;
-    } catch (error) {
-      console.error('Error uploading to Cloud Storage:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
-      throw error;
-    }
-  };
-
   const generateThumbnail = async (videoUri: string): Promise<string> => {
     console.log('Starting thumbnail generation for:', videoUri);
     try {
@@ -281,7 +305,7 @@ export function PickAndUploadVideo() {
     }
   };
 
-  const compressVideo = async (videoFile: string) => {
+  const compressVideo = async (videoFile: string, onProgress?: (progress: number) => void) => {
     console.log('Starting video compression...', videoFile);
     const formData = new FormData();
     
@@ -330,7 +354,7 @@ export function PickAndUploadVideo() {
                 break;
               case 'progress':
                 console.log(`Compression progress: ${eventData.percent}%`);
-                setCompressionProgress(eventData.percent);
+                onProgress?.(eventData.percent);
                 break;
               case 'completed':
                 console.log('Compression completed', eventData.compressedVideoUrl);
@@ -383,6 +407,7 @@ export function PickAndUploadVideo() {
     setIsUploading(true);
     setUploadProgress(0);
     setCompressionProgress(0);
+    setOverallProgress(0);
   
     try {
       console.log('Starting upload process...');
@@ -399,61 +424,84 @@ export function PickAndUploadVideo() {
       const { uploadUrl, filename } = await getUploadUrl(videoId);
       console.log('Got upload URL:', uploadUrl);
   
-      const uploadedVideoUri = await uploadToCloudStorage(uploadUrl, videoUri);
+      // Upload to Cloud Storage
+      const uploadedVideoUri = await uploadToCloudStorage(uploadUrl, videoUri, (progress) => {
+        updateOverallProgress(progress, 0, 0);
+      });
       console.log('Video uploaded to Cloud Storage');
   
-      console.log('Starting video compression...');
-      let thumbnailUri = null;
-      const compressedVideoUrl = await compressVideo(uploadedVideoUri);
-      console.log('Video compressed successfully');
-      console.log('Compressed video URL:', compressedVideoUrl);
-      
-      console.log('Uploading compressed video to Firebase...');
-      try {
-        const downloadURL = await uploadVideo(compressedVideoUrl, videoId);
-        console.log('Compressed video uploaded to Firebase');
-        console.log('Download URL:', downloadURL);
+      // Compress video
+      console.log('Starting compression...');
+      const compressedVideoUrl = await compressVideo(uploadedVideoUri, (progress: number) => {
+        setCompressionProgress(progress);
+        updateOverallProgress(100, progress, 0);
+      });
+      console.log('Compression completed. Compressed video URL:', compressedVideoUrl);
   
-        console.log('Updating Firestore document...');
-        await updateFirestoreDocument(videoId, downloadURL, thumbnailUri);
-        console.log('Firestore document updated successfully');
-  
-        console.log('Fetching updated video list...');
-        dispatch(setLoading(true));
-        await fetchVideosIfNeeded();
-        dispatch(setLoading(false));
-        setVideo(null); 
-  
-        Alert.alert(
-          'Success', 
-          'Video uploaded successfully',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                dispatch(setLoading(true));
-                router.push('/(tabs)/explore');
-                setTimeout(() => {
-                  fetchVideosIfNeeded().then(() => {
-                    dispatch(setLoading(false));
-                  });
-                }, 0);
-              }
-            }
-          ]
-        );
-      } catch (uploadError) {
-        console.error('Error uploading to Firebase:', uploadError);
-        Alert.alert('Upload Error', `Failed to upload video to Firebase: ${uploadError.message}`);
+      if (!compressedVideoUrl) {
+        throw new Error('Compression failed: No compressed video URL returned');
       }
   
+      // Upload to Firebase
+      console.log('Starting Firebase upload...');
+      const firebaseDownloadURL = await uploadVideo(compressedVideoUrl, videoId, (progress) => {
+        setUploadProgress(progress);
+        updateOverallProgress(100, 100, progress);
+      });
+  
+      console.log('Video compressed and uploaded to Firebase');
+      console.log('Compressed video URL:', compressedVideoUrl);
+      console.log('Firebase Download URL:', firebaseDownloadURL);
+  
+      // Generate thumbnail
+      let thumbnailUri = null;
+      try {
+        thumbnailUri = await generateThumbnailWithTimeout(compressedVideoUrl);
+      } catch (thumbnailError) {
+        console.error('Error generating thumbnail:', thumbnailError);
+      }
+  
+      console.log('Updating Firestore document...');
+      await updateFirestoreDocument(videoId, firebaseDownloadURL, thumbnailUri);
+      console.log('Firestore document updated successfully');
+  
+      console.log('Fetching updated video list...');
+      dispatch(setLoading(true));
+      await fetchVideosIfNeeded();
+      dispatch(setLoading(false));
+      setVideo(null);
+  
+      Alert.alert(
+        'Success', 
+        'Video uploaded and processed successfully',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              dispatch(setLoading(true));
+              router.push('/(tabs)/explore');
+              setTimeout(() => {
+                fetchVideosIfNeeded().then(() => {
+                  dispatch(setLoading(false));
+                });
+              }, 0);
+            }
+          }
+        ]
+      );
     } catch (error) {
       console.error('Error in handleUpload:', error);
-      Alert.alert('Upload Error', `Failed to upload video: ${error.message}`);
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      Alert.alert('Upload Error', `Failed to upload video: ${error instanceof Error ? error.message : 'An unknown error occurred'}`);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
       setCompressionProgress(0);
+      setOverallProgress(0);
     }
   };
 
@@ -473,6 +521,12 @@ export function PickAndUploadVideo() {
     }
   };
 
+  const updateOverallProgress = (cloudStorageProgress: number, compressionProgress: number, firebaseProgress: number) => {
+    // Assuming each step is weighted equally
+    const overallProgress = (cloudStorageProgress + compressionProgress + firebaseProgress) / 3;
+    setOverallProgress(overallProgress);
+  };
+
   return (
     <View style={styles.container}>
       {isCheckingFileSize && (
@@ -481,7 +535,7 @@ export function PickAndUploadVideo() {
           <Text style={styles.overlayText}>Checking file size...</Text>
         </View>
       )}
-
+  
       {video ? (
         <>
           <Video
@@ -491,7 +545,7 @@ export function PickAndUploadVideo() {
             useNativeControls
             resizeMode={ResizeMode.CONTAIN}
             isLooping
-            onError={(error) => {
+            onError={(error: any) => {
               console.error('Video playback error:', error);
               setVideoError('Error playing the video. The file may be corrupted or in an unsupported format.');
             }}
@@ -505,21 +559,28 @@ export function PickAndUploadVideo() {
           <Text style={styles.placeholderText}>No video selected</Text>
         </View>
       )}
-
+  
+      {isUploading && (
+        <View style={styles.progressContainer}>
+          <View style={[styles.progressBar, { width: `${overallProgress}%` }]} />
+          <Text style={styles.progressText}>Overall Progress: {overallProgress.toFixed(2)}%</Text>
+        </View>
+      )}
+  
       {compressionProgress > 0 && compressionProgress < 100 && (
         <View style={styles.progressContainer}>
           <View style={[styles.progressBar, { width: `${compressionProgress}%` }]} />
           <Text style={styles.progressText}>Compressing: {compressionProgress.toFixed(2)}%</Text>
         </View>
       )}
-
+  
       {uploadProgress > 0 && uploadProgress < 100 && (
         <View style={styles.progressContainer}>
           <View style={[styles.progressBar, { width: `${uploadProgress}%` }]} />
-          <Text style={styles.progressText}>Uploading: {uploadProgress.toFixed(2)}%</Text>
+          <Text style={styles.progressText}>Uploading to Firebase: {uploadProgress.toFixed(2)}%</Text>
         </View>
       )}
-
+  
       <View style={styles.buttonContainer}>
         <TouchableOpacity 
           style={[styles.button, isCheckingFileSize && styles.disabledButton]} 

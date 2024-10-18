@@ -22,7 +22,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const port = 8080;
+const PORT = process.env.PORT || 8080;
 const app = express();
 //https://real-9f3b8.ts.r.appspot.com'||'http://localhost:8080
 // app.use(cors({
@@ -60,6 +60,7 @@ const upload = multer({ dest: 'uploads/' });
 
 
 app.get('/health', (req, res) => {
+  console.log('ppp...');
   res.status(200).send('OK');
 });
 
@@ -175,6 +176,6 @@ app.post('/compress-video', upload.single('video'), (req, res) => {
     .save(outputPath);
 });
 
-app.listen(8080, () => {
-  console.log('Server running on port 8080');
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
 });
