@@ -6,7 +6,7 @@ import multer from 'multer';
 import ffmpeg from 'fluent-ffmpeg';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import fs from 'fs/promises';  
+import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import { EventEmitter } from 'events';
@@ -85,17 +85,11 @@ app.post('/get-upload-url', async (req, res) => {
 });
 
 // Compress video
-app.post('/compress-video', upload.single('video'), (req, res) => {
-  console.log('Received file:', req.file);
-  if (!req.file) {
-    return res.status(400).send('No file uploaded.');
-  }
-
-  const inputPath = req.file.path;
-  const outputPath = path.join(os.tmpdir(), `compressed_${Date.now()}.mp4`);
-
-  console.log('Starting compression for file:', inputPath);
-  console.log('Output path:', outputPath);
+app.post('/compress-video', async (req, res) => {
+  console.log('Received request to compress video - ', req.body);
+  const { filename } = req.body;
+  const inputFilename = filename;
+  const outputFilename = `compressed_${filename}`;
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -104,76 +98,97 @@ app.post('/compress-video', upload.single('video'), (req, res) => {
     'X-Accel-Buffering': 'no' // Disable buffering
   });
 
-  let progress = 0;
-  let startTime = Date.now();
-  let duration = 0;
+  const tempInputPath = path.join(os.tmpdir(), inputFilename);
+  const tempOutputPath = path.join(os.tmpdir(), outputFilename);
 
-  ffmpeg(inputPath)
-    .outputOptions([
-      '-c:v libx264',
-      '-preset ultrafast',
-      '-crf 28',
-      '-vf scale=720:-2',
-      '-profile:v baseline',
-      '-level 3.0',
-      '-pix_fmt yuv420p',
-      '-c:a aac',
-      '-b:a 128k',
-      '-movflags +faststart',
-      '-r 30'  // Force 30 fps
-    ])
-    .toFormat('mp4')
-    .on('start', (commandLine) => {
-      console.log('Compression started with command:', commandLine);
-      res.write(`data: ${JSON.stringify({ status: 'started' })}\n\n`);
-    })
-    .on('codecData', (data) => {
-      duration = parseInt(data.duration.replace(/:/g, ''));
-    })
-    .on('progress', (progressData) => {
-      if (progressData.percent) {
-        progress = progressData.percent;
-      } else if (duration > 0) {
-        // Calculate progress based on time if percent is not available
-        const currentTime = progressData.timemark.replace(/:/g, '');
-        progress = (parseInt(currentTime) / duration) * 100;
-      } else {
-        // If duration is not available, use a simple increasing progress
-        const elapsedTime = Date.now() - startTime;
-        progress = Math.min((elapsedTime / 60000) * 100, 99); // Assume 1 minute for 100%
-      }
-      
-      console.log(`Processing: ${progress.toFixed(2)}% done`);
-      res.write(`data: ${JSON.stringify({ status: 'progress', percent: parseFloat(progress.toFixed(2)) })}\n\n`);
-    })
-    .on('end', async () => {
-      console.log('Compression finished');
-      try {
-        const compressedVideoBuffer = await fs.readFile(outputPath);
-        const filename = `compressed_${Date.now()}.mp4`;
-        await storage.bucket(bucketName).file(filename).save(compressedVideoBuffer);
-        const [url] = await storage.bucket(bucketName).file(filename).getSignedUrl({
-          version: 'v4',
-          action: 'read',
-          expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-        });
-        res.write(`data: ${JSON.stringify({ status: 'completed', compressedVideoUrl: url })}\n\n`);
+  try {
+    // Download file from Google Cloud Storage
+    await storage.bucket(bucketName).file(inputFilename).download({ destination: tempInputPath });
+
+    let progress = 0;
+    let startTime = Date.now();
+    let duration = 0;
+
+    ffmpeg(tempInputPath)
+      .outputOptions([
+        '-c:v libx264',
+        '-preset ultrafast',
+        '-crf 28',
+        '-vf scale=720:-2',
+        '-profile:v baseline',
+        '-level 3.0',
+        '-pix_fmt yuv420p',
+        '-c:a aac',
+        '-b:a 128k',
+        '-movflags +faststart',
+        '-r 30'  // Force 30 fps
+      ])
+      .toFormat('mp4')
+      .on('start', (commandLine) => {
+        console.log('Compression started with command:', commandLine);
+        res.write(`data: ${JSON.stringify({ status: 'started' })}\n\n`);
+      })
+      .on('codecData', (data) => {
+        duration = parseInt(data.duration.replace(/:/g, ''));
+      })
+      .on('progress', (progressData) => {
+        if (progressData.percent) {
+          progress = progressData.percent;
+        } else if (duration > 0) {
+          const currentTime = progressData.timemark.replace(/:/g, '');
+          progress = (parseInt(currentTime) / duration) * 100;
+        } else {
+          const elapsedTime = Date.now() - startTime;
+          progress = Math.min((elapsedTime / 60000) * 100, 99);
+        }
+        
+        console.log(`Processing: ${progress.toFixed(2)}% done`);
+        res.write(`data: ${JSON.stringify({ status: 'progress', percent: parseFloat(progress.toFixed(2)) })}\n\n`);
+      })
+      .on('end', async () => {
+        console.log('Compression finished');
+        try {
+          // Upload compressed file to Google Cloud Storage
+          await storage.bucket(bucketName).upload(tempOutputPath, {
+            destination: outputFilename,
+          });
+
+          const [url] = await storage.bucket(bucketName).file(outputFilename).getSignedUrl({
+            version: 'v4',
+            action: 'read',
+            expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+          });
+          res.write(`data: ${JSON.stringify({ status: 'completed', compressedVideoUrl: url })}\n\n`);
+          res.end();
+
+          // Clean up temporary files
+          fs.unlinkSync(tempInputPath);
+          fs.unlinkSync(tempOutputPath);
+        } catch (error) {
+          console.error('Error:', error);
+          res.write(`data: ${JSON.stringify({ status: 'error', error: error.message })}\n\n`);
+          res.end();
+        }
+      })
+      .on('error', (err) => {
+        console.error('FFmpeg error:', err);
+        res.write(`data: ${JSON.stringify({ status: 'error', error: err.message })}\n\n`);
         res.end();
+
         // Clean up temporary files
-        await fs.unlink(inputPath);
-        await fs.unlink(outputPath);
-      } catch (error) {
-        console.error('Error:', error);
-        res.write(`data: ${JSON.stringify({ status: 'error', error: error.message })}\n\n`);
-        res.end();
-      }
-    })
-    .on('error', (err) => {
-      console.error('FFmpeg error:', err);
-      res.write(`data: ${JSON.stringify({ status: 'error', error: err.message })}\n\n`);
-      res.end();
-    })
-    .save(outputPath);
+        if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+        if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+      })
+      .save(tempOutputPath);
+  } catch (error) {
+    console.error('Error in compress-video:', error);
+    res.write(`data: ${JSON.stringify({ status: 'error', error: error.message })}\n\n`);
+    res.end();
+
+    // Clean up temporary files
+    if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+    if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {

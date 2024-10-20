@@ -305,24 +305,16 @@ export function PickAndUploadVideo() {
     }
   };
 
-  const compressVideo = async (videoFile: string, onProgress?: (progress: number) => void) => {
-    console.log('Starting video compression...', videoFile);
-    const formData = new FormData();
-    
-    formData.append('video', {
-      uri: videoFile,
-      type: 'video/mp4',
-      name: 'video.mp4',
-    } as any);
-  
+  const compressVideo = async (filename: string, onProgress?: (progress: number) => void) => {
+    console.log('Starting video compression...', filename);
     try {
       console.log('Sending compression request to:', `${API_URL}/compress-video`);
       const response = await fetch(`${API_URL}/compress-video`, {
         method: 'POST',
-        body: formData,
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ filename }),
       });
   
       console.log('Compression response status:', response.status);
@@ -334,7 +326,7 @@ export function PickAndUploadVideo() {
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
   
-      // Handle the response as text instead of using a reader
+      // Use response.text() instead of streaming
       const responseText = await response.text();
       console.log('Full response text:', responseText);
   
@@ -423,21 +415,21 @@ export function PickAndUploadVideo() {
   
       const { uploadUrl, filename } = await getUploadUrl(videoId);
       console.log('Got upload URL:', uploadUrl);
-  
+
       // Upload to Cloud Storage
-      const uploadedVideoUri = await uploadToCloudStorage(uploadUrl, videoUri, (progress) => {
+      await uploadToCloudStorage(uploadUrl, videoUri, (progress) => {
         updateOverallProgress(progress, 0, 0);
       });
       console.log('Video uploaded to Cloud Storage');
-  
+
       // Compress video
       console.log('Starting compression...');
-      const compressedVideoUrl = await compressVideo(uploadedVideoUri, (progress: number) => {
+      const compressedVideoUrl = await compressVideo(filename, (progress: number) => {
         setCompressionProgress(progress);
         updateOverallProgress(100, progress, 0);
       });
       console.log('Compression completed. Compressed video URL:', compressedVideoUrl);
-  
+
       if (!compressedVideoUrl) {
         throw new Error('Compression failed: No compressed video URL returned');
       }
