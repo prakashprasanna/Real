@@ -112,8 +112,8 @@ app.post('/compress-video', async (req, res) => {
     ffmpeg(tempInputPath)
       .outputOptions([
         '-c:v libx264',
-        '-preset ultrafast',
-        '-crf 28',
+        '-preset fast',
+        '-crf 23',
         '-vf scale=720:-2',
         '-profile:v baseline',
         '-level 3.0',

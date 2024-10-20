@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, Text, Dimensions } from 'react-native';
 import { SwipeableVideoFeed } from '../../components/VideoComponents/SwipeableVideoFeed';
 import { useLocalSearchParams } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/Redux/store';
 import { useDispatch } from 'react-redux';
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function SwipeableVideoFeedScreen() {
   const { videos, initialIndex } = useLocalSearchParams<{ videos: string, initialIndex: string }>();
@@ -28,11 +29,12 @@ export default function SwipeableVideoFeedScreen() {
   return (
     <View style={styles.container}>
       {videoUrls.length > 0 ? (
-        <SwipeableVideoFeed 
-          videos={videoUrls} 
-          initialIndex={Math.min(currentIndex, videoUrls.length - 1)} 
-          // onReorder={handleReorder}
-        />
+        <View style={styles.feedContainer}>
+          <SwipeableVideoFeed 
+            videos={videoUrls} 
+            initialIndex={Math.min(currentIndex, videoUrls.length - 1)} 
+          />
+        </View>
       ) : (
         <Text style={styles.noVideosText}>No videos available</Text>
       )}
@@ -46,6 +48,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  feedContainer: {
+    width: screenWidth,
+    height: screenHeight,
   },
   noVideosText: {
     color: 'white',
