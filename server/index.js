@@ -158,6 +158,16 @@ app.post('/compress-video', async (req, res) => {
             action: 'read',
             expires: Date.now() + 15 * 60 * 1000, // 15 minutes
           });
+
+          // Delete the original file
+          try {
+            await storage.bucket(bucketName).file(inputFilename).delete();
+            console.log(`Original file ${inputFilename} deleted successfully.`);
+          } catch (deleteError) {
+            console.error(`Error deleting original file ${inputFilename}:`, deleteError);
+            // We don't throw here to avoid interrupting the process
+          }
+
           res.write(`data: ${JSON.stringify({ status: 'completed', compressedVideoUrl: url })}\n\n`);
           res.end();
 
@@ -188,6 +198,19 @@ app.post('/compress-video', async (req, res) => {
     // Clean up temporary files
     if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
     if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+  }
+});
+
+// Add this new endpoint to delete a file from Google Cloud Storage
+app.post('/delete-file', async (req, res) => {
+  const { filename } = req.body;
+  try {
+    await storage.bucket(bucketName).file(filename).delete();
+    console.log(`File ${filename} deleted successfully from Google Cloud Storage.`);
+    res.status(200).json({ message: 'File deleted successfully' });
+  } catch (error) {
+    console.error(`Error deleting file ${filename}:`, error);
+    res.status(500).json({ error: 'Error deleting file' });
   }
 });
 

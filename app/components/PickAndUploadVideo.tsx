@@ -433,17 +433,23 @@ export function PickAndUploadVideo() {
       if (!compressedVideoUrl) {
         throw new Error('Compression failed: No compressed video URL returned');
       }
-  
+
       // Upload to Firebase
       console.log('Starting Firebase upload...');
       const firebaseDownloadURL = await uploadVideo(compressedVideoUrl, videoId, (progress) => {
         setUploadProgress(progress);
         updateOverallProgress(100, 100, progress);
       });
-  
+
       console.log('Video compressed and uploaded to Firebase');
       console.log('Compressed video URL:', compressedVideoUrl);
       console.log('Firebase Download URL:', firebaseDownloadURL);
+
+      // // Delete the compressed video from Google Cloud Storage
+      // const compressedFilename = compressedVideoUrl.split('/').pop()?.split('?')[0];
+      // if (compressedFilename) {
+      //   await deleteCompressedVideo(compressedFilename);
+      // }
   
       // Generate thumbnail
       let thumbnailUri = null;
@@ -517,6 +523,27 @@ export function PickAndUploadVideo() {
     // Assuming each step is weighted equally
     const overallProgress = (cloudStorageProgress + compressionProgress + firebaseProgress) / 3;
     setOverallProgress(overallProgress);
+  };
+
+  const deleteCompressedVideo = async (filename: string) => {
+    try {
+      const response = await fetch(`${API_URL}/delete-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filename }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete compressed video: ${response.status} ${response.statusText}`);
+      }
+
+      console.log('Compressed video deleted from Google Cloud Storage');
+    } catch (error) {
+      console.error('Error deleting compressed video:', error);
+      // We don't throw here to avoid interrupting the main process
+    }
   };
 
   return (
