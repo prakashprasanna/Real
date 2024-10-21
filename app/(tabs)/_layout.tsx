@@ -57,11 +57,11 @@ export default function TabLayout() {
   const handleExplorePress = useCallback(() => {
     dispatch(setLoading(true));
     router.push('/(tabs)/explore');
-    setTimeout(() => {
-      fetchVideosIfNeeded().then(() => {
-        dispatch(setLoading(false));
-      });
-    }, 0);
+    // setTimeout(() => {
+    //   fetchVideosIfNeeded().then(() => {
+    //     dispatch(setLoading(false));
+    //   });
+    // }, 0);
   }, [dispatch, fetchVideosIfNeeded, router]);
 
   const handleCartPress = () => {

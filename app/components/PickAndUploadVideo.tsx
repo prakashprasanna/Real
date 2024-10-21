@@ -29,6 +29,7 @@ export function PickAndUploadVideo() {
   const [isCheckingFileSize, setIsCheckingFileSize] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [overallProgress, setOverallProgress] = useState(0);
+  const [localVideoUri, setLocalVideoUri] = useState<string | null>(null);
 
   const videoRef = useRef<Video>(null);
   const router = useRouter();
@@ -104,7 +105,7 @@ export function PickAndUploadVideo() {
 
         const localUri = await copyVideoToLocalUri(videoUri);
         console.log('Copied video to local URI:', localUri);
-    
+        setLocalVideoUri(localUri);
         setVideo(localUri);
       }
     } catch (error) {
@@ -175,6 +176,16 @@ export function PickAndUploadVideo() {
         console.error('Error stack:', error.stack);
       }
       throw error;
+    }
+  };
+
+  const deleteLocalVideo = async (uri: string) => {
+    console.log('deleteLocalVideo uri', uri);
+    try {
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+      console.log('Local video file deleted successfully');
+    } catch (error) {
+      console.error('Error deleting local video file:', error);
     }
   };
   
@@ -468,6 +479,11 @@ export function PickAndUploadVideo() {
       await fetchVideosIfNeeded();
       dispatch(setLoading(false));
       setVideo(null);
+
+      if (localVideoUri) {
+        await deleteLocalVideo(localVideoUri);
+        setLocalVideoUri(null);
+      }
   
       Alert.alert(
         'Success', 
