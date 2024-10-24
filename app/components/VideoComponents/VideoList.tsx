@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { FlatList, RefreshControl, StyleSheet, View, ScrollView, Text, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshControl, StyleSheet, View, Text, TouchableOpacity, Alert, ListRenderItem } from 'react-native';
 import { VideoPreview } from './VideoPreview';
 import { Video } from '../../../api/destinationsApi';
-import { MaterialIcons } from '@expo/vector-icons';  // Change this line
+import { MaterialIcons } from '@expo/vector-icons';
+import { FlashList } from '@shopify/flash-list';
 
 interface VideoListProps {
   videos: Video[];
@@ -66,18 +67,18 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
     );
   };
 
+  const renderItem: ListRenderItem<Video> = useCallback(({ item, index }) => (
+    <VideoPreview
+      uri={item.downloadURL}
+      index={index}
+      isSelected={selectedVideos.includes(item.id)}
+      onLongPress={() => handleLongPress(item.id)}
+      onPress={() => selectedVideos.length > 0 ? toggleVideoSelection(item.id) : onVideoPress(item)}
+    />
+  ), [selectedVideos, onVideoPress]);
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollViewContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          colors={['#6bb2be']}
-          tintColor="#6bb2be"
-        />
-      }
-    >
+    <View style={styles.container}>
       <Text style={styles.debugInfo}>
         Videos: {videos.length} | Last Refreshed: {lastRefreshTime.toLocaleTimeString()}
       </Text>
@@ -90,32 +91,31 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
       {videos.length === 0 ? (
         <Text style={styles.emptyMessage}>No videos available. Pull down to refresh.</Text>
       ) : (
-        <FlatList
+        <FlashList
           data={videos}
-          renderItem={({ item, index }) => (
-            <VideoPreview
-              uri={item.downloadURL}
-              index={index}
-              isSelected={selectedVideos.includes(item.id)}
-              onLongPress={() => handleLongPress(item.id)}
-              onPress={() => selectedVideos.length > 0 ? toggleVideoSelection(item.id) : onVideoPress(item)}
-            />
-          )}
-          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          estimatedItemSize={200}
           numColumns={2}
-          contentContainerStyle={styles.flatListContent}
-          scrollEnabled={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={['#6bb2be']}
+              tintColor="#6bb2be"
+            />
+          }
+          contentContainerStyle={styles.flashListContent} 
         />
       )}
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollViewContent: {
-    flexGrow: 1,
+  container: {
+    flex: 1,
   },
-  flatListContent: {
+  flashListContent: {
     padding: 5,
   },
   debugInfo: {
