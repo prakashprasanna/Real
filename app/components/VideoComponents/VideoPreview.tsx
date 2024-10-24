@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { TouchableOpacity, StyleSheet, Dimensions, View } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/Redux/store';
@@ -13,7 +13,6 @@ interface VideoPreviewProps {
   isSelected?: boolean;
   onLongPress?: () => void;
   onPress: () => void;
-
 }
 
 const { width } = Dimensions.get('window');
@@ -28,13 +27,22 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelect
     const playVideo = async () => {
       if (videoRef.current) {
         await videoRef.current.playAsync();
-        setTimeout(() => {
-          videoRef.current?.stopAsync();
-        }, 5000);
       }
     };
     playVideo();
+
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.stopAsync();
+      }
+    };
   }, []);
+
+  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (status.isLoaded && status.positionMillis >= 5000) {
+      videoRef.current?.setPositionAsync(0);
+    }
+  };
 
   const handlePress = () => {
     console.log('Video clicked:', index, isSelected);
@@ -65,7 +73,6 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelect
     });
   };
 
-
   return (
     <TouchableOpacity 
       onPress={handlePress} 
@@ -77,9 +84,10 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelect
         source={{ uri }}
         style={styles.video}
         resizeMode={ResizeMode.COVER}
-        isLooping={true}
+        isLooping={false}
         shouldPlay={true}
         isMuted={true}
+        onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
       />
       {isSelected && (
         <View style={styles.selectedOverlay}>
