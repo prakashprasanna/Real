@@ -19,4 +19,5 @@ web-build/
 expo-env.d.ts
 .env
 *bc48a.json
+firebaseConfig.js
 # @end expo-cli
