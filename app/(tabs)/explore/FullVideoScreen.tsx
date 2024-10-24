@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, Dimensions, Text, TouchableOpacity, ViewStyle } from 'react-native';
+import React, { forwardRef, useImperativeHandle, useEffect, useCallback, useState, useRef } from 'react';
+import { View, StyleSheet, Dimensions, TouchableOpacity, ViewStyle } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,20 +8,68 @@ import { useRouter } from 'expo-router';
 interface FullVideoScreenProps {
   uri: string;
   screen: 'Swipe' | null;
-  isActive?: boolean;
+  isActive: boolean;
   style?: ViewStyle;
   onSwipe: () => void;
-  //onReorder: (index: number) => void;
+  index: number;
+  activeIndex: number;
+  globalMute: boolean;
+  onMuteChange: (isMuted: boolean) => void;
 }
 
-export default function FullVideoScreen({ uri, screen, isActive = true, style, onSwipe }: FullVideoScreenProps) {
+const FullVideoScreen = forwardRef<Video, FullVideoScreenProps>(({ 
+  uri, 
+  screen, 
+  isActive, 
+  style, 
+  onSwipe, 
+  index, 
+  activeIndex, 
+  globalMute,
+  onMuteChange
+}, ref) => {
   const videoRef = useRef<Video>(null);
   const isFocused = useIsFocused();
   const navigation = useNavigation();
   const router = useRouter();
   const [status, setStatus] = useState<AVPlaybackStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isMuted, setIsMuted] = useState(true);
+  const [localMute, setLocalMute] = useState(globalMute);
+
+  useImperativeHandle(ref, () => ({
+    playAsync: () => videoRef.current?.playAsync(),
+    pauseAsync: () => videoRef.current?.pauseAsync(),
+    setIsMutedAsync: (muted: boolean) => videoRef.current?.setIsMutedAsync(muted),
+  }));
+
+  useEffect(() => {
+    setLocalMute(globalMute);
+  }, [globalMute]);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isActive && isFocused && index === activeIndex) {
+        videoRef.current.playAsync();
+      } else {
+        videoRef.current.pauseAsync();
+      }
+      videoRef.current.setIsMutedAsync(localMute);
+    }
+  }, [isActive, isFocused, index, activeIndex, localMute]);
+
+  const handleVideoState = useCallback(async () => {
+    if (videoRef.current) {
+      if (isActive && isFocused && index === activeIndex) {
+        await videoRef.current.playAsync();
+      } else {
+        await videoRef.current.pauseAsync();
+      }
+      await videoRef.current.setIsMutedAsync(localMute);
+    }
+  }, [isActive, isFocused, index, activeIndex, localMute]);
+
+  useEffect(() => {
+    handleVideoState();
+  }, [handleVideoState]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -29,100 +77,51 @@ export default function FullVideoScreen({ uri, screen, isActive = true, style, o
     });
 
     return () => {
-      if (videoRef.current) {
-        videoRef.current.stopAsync();
-        videoRef.current.unloadAsync();
-      }
       navigation.setOptions({
         tabBarStyle: { display: 'flex', backgroundColor: '#6bb2be' },
       });
     };
   }, [navigation]);
 
-  useEffect(() => {
-    if (videoRef.current) {
-      if (isActive && isFocused) {
-        videoRef.current.playAsync();
-        videoRef.current.setIsMutedAsync(isMuted);
-      } else {
-        videoRef.current.pauseAsync();
-        videoRef.current.setIsMutedAsync(true);
-      }
-    }
-  }, [isActive, isFocused, isMuted]);
-
-  useEffect(() => {
-    if (!isActive) {
-      setIsMuted(true);
-      if (videoRef.current) {
-        videoRef.current.setIsMutedAsync(true);
-      }
-    }
-  }, [isActive]);
+  const handleBackPress = () => {
+    router.back();
+  };
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     setStatus(status);
   };
 
-  const handleVideoError = (error: string) => {
-    console.error('Video Error:', error);
-    setError('Failed to play video. Please try again later.');
-  };
-
-  const retryPlayback = () => {
-    setError(null);
-    if (videoRef.current) {
-      videoRef.current.loadAsync({ uri }, {}, false);
-    }
-  };
-
-  const handleBackPress = () => {
-    router.back();
-  };
-
-  const toggleMute = () => {
-    const newMuteState = !isMuted;
-    setIsMuted(newMuteState);
+  const handleToggleMute = useCallback(() => {
+    const newMuteState = !localMute;
+    setLocalMute(newMuteState);
+    onMuteChange(newMuteState);
     if (videoRef.current) {
       videoRef.current.setIsMutedAsync(newMuteState);
     }
-    onSwipe();
-  };
-
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={retryPlayback}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  }, [localMute, onMuteChange]);
 
   return (
     <View style={[styles.container, style]}>
       <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
         <Ionicons name="arrow-back" size={24} color="white" />
       </TouchableOpacity>
-      <TouchableOpacity style={styles.muteButton} onPress={toggleMute}>
-        <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={24} color="white" />
+      <TouchableOpacity style={styles.muteButton} onPress={handleToggleMute}>
+        <Ionicons name={localMute ? "volume-mute" : "volume-high"} size={24} color="white" />
       </TouchableOpacity>
       <Video
         ref={videoRef}
         source={{ uri }}
         style={styles.video}
-        useNativeControls
         resizeMode={ResizeMode.CONTAIN}
         isLooping
-        shouldPlay={isActive && isFocused}
-        isMuted={isMuted || !isActive || !isFocused}
+        shouldPlay={isActive && isFocused && index === activeIndex}
+        isMuted={localMute}
         onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-        onError={(error: any) => handleVideoError(error && typeof error === 'object' && 'message' in error ? error.message : String(error))}
       />
     </View>
   );
-}
+});
+  
 
 const styles = StyleSheet.create({
   container: {
@@ -134,28 +133,6 @@ const styles = StyleSheet.create({
   video: {
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'black',
-  },
-  errorText: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: '#6bb2be',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-  },
-  retryButtonText: {
-    color: 'white',
-    fontSize: 16,
   },
   backButton: {
     position: 'absolute',
@@ -172,3 +149,5 @@ const styles = StyleSheet.create({
     padding: 10,
   },
 });
+
+export default FullVideoScreen;
