@@ -62,7 +62,7 @@ export default function TabLayout() {
     //     dispatch(setLoading(false));
     //   });
     // }, 0);
-  }, [dispatch, fetchVideosIfNeeded, router]);
+  }, [dispatch, router]); //handleExplorePress
 
   const handleCartPress = () => {
     router.push('/cart');
@@ -87,9 +87,9 @@ export default function TabLayout() {
               <Ionicons name="search" size={24} color={'#fff'} />
             )
           ),
-          tabBarButton: (props) => (
-            <TouchableOpacity {...props} onPress={handleExplorePress} />
-          ),
+          // tabBarButton: (props) => (
+          //   <TouchableOpacity {...props} onPress={handleExplorePress} />
+          // ),
         }}
       />
       <Tabs.Screen
