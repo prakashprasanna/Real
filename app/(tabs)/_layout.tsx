@@ -123,7 +123,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={'#fff'} />,
         }}
       />
-      <Tabs.Screen name="explore/DestinationDetailScreen" options={{ href: null }} />
+      <Tabs.Screen name="explore/UserReelsScreen" options={{ href: null }} />
       <Tabs.Screen name="PaymentScreen" options={{ href: null }} />
       <Tabs.Screen 
         name="explore/FullVideoScreen" 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Destination } from '../../../api/destinationsApi';
+import { User } from '../../../api/destinationsApi';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import StackHeader from '@/app/components/StackHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,11 +9,11 @@ import { AddToCartButton } from '@/app/components/AddToCartButton';
 import { MaterialIcons } from '@expo/vector-icons';
 import AddToCartModal from '@/app/components/AddToCartModal';
 
-// type DestinationDetailScreenProps = {
+// type UserReelsScreenProps = {
 //   route: { params: { destination: Destination } };
 // };
 
-export default function DestinationDetailScreen({ route }: any) {
+export default function UserReelsScreen({ route }: any) {
     // console.log(route)
 //   const { destination } = route?.params;
 const router = useRouter();
@@ -36,7 +36,7 @@ useEffect(() => {
     console.log(favorites)
     if (favorites) {
       const favoritesArray = JSON.parse(favorites);
-      setIsFavorite(favoritesArray.some((fav: Destination) => fav.id === destinationData.id));
+      setIsFavorite(favoritesArray.some((fav: User) => fav.id === destinationData.id));
     }
   };
 
@@ -46,7 +46,7 @@ useEffect(() => {
       let favoritesArray = favorites ? JSON.parse(favorites) : [];
       
       if (isFavorite) {
-        favoritesArray = favoritesArray.filter((fav: Destination) => fav.id !== destinationData.id);
+        favoritesArray = favoritesArray.filter((fav: User) => fav.id !== destinationData.id);
       } else {
         favoritesArray.push(destinationData);
       }
