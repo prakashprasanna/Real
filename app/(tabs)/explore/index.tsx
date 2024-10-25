@@ -8,7 +8,7 @@ import { VideoList } from '../../components/VideoComponents/VideoList';
 import { useRouter } from 'expo-router';
 import { User, fetchUsers, fetchVideos, Video, deleteVideoAPI } from '../../../api/destinationsApi';
 import { useDispatch, useSelector } from 'react-redux';
-import { setVideos, deleteVideo } from '../../../Redux/videosSlice';
+import { setVideos, deleteVideo, setCurrentIndex } from '../../../Redux/videosSlice';
 import { RootState } from '../../../Redux/store';
 import { auth } from '@/firebaseConfig';
 
@@ -70,12 +70,27 @@ export default function Explore() {
       setLoading(false);
     }
   };
-
   const handleVideoPress = (video: Video) => {
-    router.push({
-      pathname: '/(tabs)/explore/FullVideoScreen',
-      params: { uri: video.downloadURL }
-    });
+    console.log("handleVideoPress called in Explore with video:", video.id);
+    const index = videos.findIndex(v => v.id === video.id);
+    console.log("Video index:", index);
+    dispatch(setCurrentIndex(index));
+    
+    const params = {
+      isLoggedInUser: 'true',
+      initialIndex: index.toString(),
+    };
+    console.log("Navigating to SwipeableVideoFeedScreen with params:", params);
+    
+    try {
+      router.push({
+        pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
+        params: params,
+      });
+      console.log("Navigation completed");
+    } catch (error) {
+      console.error("Navigation error:", error);
+    }
   };
 
   const handleDeleteVideo = async (videoId: string) => {
@@ -93,11 +108,12 @@ export default function Explore() {
     <>
       <StackHeader detail={'Explore'} />
       <View style={styles.container}>
-        {/* <SearchBar value={searchQuery} onChangeText={setSearchQuery} /> */}
+        {/* <SearchBar value={searchQuery} onChangeText={setSearchQuery} onSubmit={() => {}} /> */}
         <UsersList
           users={users}
           onLoadMore={loadUsers}
           loading={loading}
+          onlyFollowing={true}
         />
         <VideoList 
           videos={videos} 

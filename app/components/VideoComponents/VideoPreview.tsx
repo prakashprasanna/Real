@@ -1,10 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { TouchableOpacity, StyleSheet, Dimensions, View } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
-import { useRouter } from 'expo-router';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '@/Redux/store';
-import { setCurrentIndex } from '@/Redux/videosSlice';
 import { MaterialIcons } from '@expo/vector-icons';
 
 interface VideoPreviewProps {
@@ -18,10 +14,8 @@ interface VideoPreviewProps {
 const { width } = Dimensions.get('window');
 
 export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelected, onLongPress, onPress }) => {
+  console.log("VideoPreview component rendered");
   const videoRef = useRef<Video>(null);
-  const router = useRouter();
-  const dispatch = useDispatch();
-  const videos = useSelector((state: RootState) => state.videos.videos);
 
   useEffect(() => {
     const playVideo = async () => {
@@ -44,38 +38,9 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelect
     }
   };
 
-  const handlePress = () => {
-    console.log('Video clicked:', index, isSelected);
-    if (isSelected) {
-      // If in selection mode, don't navigate
-      return;
-    }
-
-    console.log('Video clicked:', index);
-    console.log('Current videos:', videos);
-
-    dispatch(setCurrentIndex(index));
-
-    const reorderedVideos = [
-      videos[index],
-      ...videos.slice(0, index),
-      ...videos.slice(index + 1)
-    ];
-
-    console.log('Reordered videos:', reorderedVideos);
-
-    router.push({
-      pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
-      params: {
-        videos: reorderedVideos.map(video => video.downloadURL),
-        initialIndex: 0,
-      },
-    });
-  };
-
   return (
     <TouchableOpacity 
-      onPress={handlePress} 
+      onPress={onPress} 
       onLongPress={onLongPress}
       style={[styles.container, isSelected && styles.selectedContainer]}
     >
@@ -97,6 +62,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ uri, index, isSelect
     </TouchableOpacity>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

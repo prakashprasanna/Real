@@ -18,7 +18,7 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
   const [selectedVideos, setSelectedVideos] = useState<string[]>([]);
 
   useEffect(() => {
-    console.log("VideoList received new videos:", videos.length);
+    console.log("VideoList: Received new videos:", videos.length);
     videos.forEach((video, index) => {
       console.log(`Video ${index + 1}:`, video.id, video.downloadURL);
     });
@@ -67,15 +67,26 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onVideoPress, onRe
     );
   };
 
-  const renderItem: ListRenderItem<Video> = useCallback(({ item, index }) => (
-    <VideoPreview
-      uri={item.downloadURL}
-      index={index}
-      isSelected={selectedVideos.includes(item.id)}
-      onLongPress={() => handleLongPress(item.id)}
-      onPress={() => selectedVideos.length > 0 ? toggleVideoSelection(item.id) : onVideoPress(item)}
-    />
-  ), [selectedVideos, onVideoPress]);
+  const renderItem: ListRenderItem<Video> = useCallback(({ item, index }) => {
+    console.log(`Rendering video ${index + 1}:`, item.id, item.downloadURL);
+    return (
+      <VideoPreview
+        uri={item.downloadURL}
+        index={index}
+        isSelected={selectedVideos.includes(item.id)}
+        onLongPress={() => handleLongPress(item.id)}
+        onPress={() => {
+          console.log("Video pressed in VideoList:", item.id, "Selected videos:", selectedVideos.length);
+          if (selectedVideos.length > 0) {
+            toggleVideoSelection(item.id);
+          } else {
+            console.log("Calling onVideoPress for video:", item.id);
+            onVideoPress(item);
+          }
+        }}
+      />
+    );
+  }, [selectedVideos, onVideoPress, handleLongPress, toggleVideoSelection]);
 
   return (
     <View style={styles.container}>

@@ -1,7 +1,19 @@
-import { storage } from '../firebaseConfig';
 import { ref, listAll, getDownloadURL, getStorage, deleteObject } from 'firebase/storage';
-import { collection, getFirestore, query, where, getDocs, QueryDocumentSnapshot, deleteDoc, doc, getDoc, limit, startAfter, orderBy } from 'firebase/firestore';
+import { getFirestore, where, QueryDocumentSnapshot, deleteDoc, orderBy } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { auth, firestore } from '../firebaseConfig';
+import { 
+  collection, 
+  doc, 
+  updateDoc, 
+  arrayUnion, 
+  getDoc, 
+  getDocs, 
+  query, 
+  limit, 
+  startAfter,
+  DocumentSnapshot
+} from 'firebase/firestore';
 
 export interface Video {
   id: string;
@@ -17,72 +29,113 @@ export interface User {
   firstName: string;
   lastName: string;
   profileImageUrl: string;
+  isFollowed?: boolean;
 }
 
-export const fetchUsers = async (page: number, pageSize: number): Promise<User[]> => {
-  console.log(`[fetchUsers] Starting to fetch users. Page: ${page}, PageSize: ${pageSize}`);
-  const startTime = Date.now();
-
-  // Add validation for page and pageSize
-  if (page < 1) {
-    console.error('[fetchUsers] Invalid page number:', page);
-    return [];
+export const fetchUsers = async (page: number, pageSize: number, onlyFollowing: boolean = false): Promise<User[]> => {
+  console.log(`[fetchUsers] Starting. Page: ${page}, PageSize: ${pageSize}, OnlyFollowing: ${onlyFollowing}`);
+  
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    console.log('[fetchUsers] No authenticated user');
+    throw new Error('No authenticated user');
   }
-  if (pageSize < 1) {
-    console.error('[fetchUsers] Invalid page size:', pageSize);
-    return [];
-  }
+  console.log(`[fetchUsers] Current user ID: ${currentUser.uid}`);
 
-  try {
-    const db = getFirestore();
-    const usersRef = collection(db, 'users');
-    let usersQuery;
+  const usersRef = collection(firestore, 'users');
+  let q;
 
-    if (page === 1) {
-      usersQuery = query(usersRef, orderBy('firstName'), limit(pageSize));
-      console.log('[fetchUsers] First page query created');
-    } else {
-      const lastVisibleUser = await getLastVisibleUser(page - 1, pageSize);
-      if (!lastVisibleUser) {
-        console.log('[fetchUsers] No more users to fetch');
-        return [];
-      }
-      console.log('[fetchUsers] Last visible user:', lastVisibleUser.id);
-      usersQuery = query(usersRef, orderBy('name'), startAfter(lastVisibleUser), limit(pageSize));
-      console.log('[fetchUsers] Subsequent page query created');
-    }
-
-    const querySnapshot = await getDocs(usersQuery);
-    console.log('[fetchUsers] Query snapshot obtained. Size:', querySnapshot.size);
-
-    if (querySnapshot.empty) {
-      console.log('[fetchUsers] No users found for this query.');
+  if (onlyFollowing) {
+    console.log('[fetchUsers] Fetching only following users');
+    const currentUserDoc = await getDoc(doc(firestore, 'users', currentUser.uid));
+    console.log('[fetchUsers] Current user document:', currentUserDoc.exists() ? 'exists' : 'does not exist');
+    
+    const following = currentUserDoc.data()?.following || [];
+    console.log(`[fetchUsers] Following array:`, following);
+    
+    if (following.length === 0) {
+      console.log('[fetchUsers] User is not following anyone, returning empty array');
       return [];
     }
 
-    const users: User[] = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      console.log('[fetchUsers] Processing user:', doc.id, data);
-      return {
-        id: doc.id,
-        firstName: data.firstName || 'Unknown',
-        lastName: data.lastName || '',
-        profileImageUrl: data.profileImageUrl || '',
-      };
-    });
-
-    console.log('[fetchUsers] Processed users count:', users.length);
-    console.log('[fetchUsers] Fetch operation completed in', Date.now() - startTime, 'ms');
-    return users;
-  } catch (error) {
-    console.error('[fetchUsers] Error fetching users:', error);
-    if (error instanceof Error) {
-      console.error('[fetchUsers] Error name:', error.name);
-      console.error('[fetchUsers] Error message:', error.message);
-      console.error('[fetchUsers] Error stack:', error.stack);
-    }
-    throw error;
+    q = query(usersRef, where('id', 'in', following), limit(pageSize));
+    console.log('[fetchUsers] Query created for following users');
+  } else {
+    q = query(usersRef, limit(pageSize));
+    console.log('[fetchUsers] Query created for all users');
   }
+
+  if (page > 1) {
+    console.log(`[fetchUsers] Page > 1, fetching last visible doc for page ${page - 1}`);
+    const lastVisibleDoc = await getLastVisibleDoc(page - 1, pageSize, onlyFollowing);
+    if (lastVisibleDoc) {
+      q = query(q, startAfter(lastVisibleDoc));
+      console.log('[fetchUsers] Query updated with startAfter');
+    } else {
+      console.log('[fetchUsers] No last visible doc found');
+    }
+  }
+
+  console.log('[fetchUsers] Executing query');
+  const querySnapshot = await getDocs(q);
+  console.log(`[fetchUsers] Query snapshot size: ${querySnapshot.size}`);
+
+  const users: User[] = [];
+
+  for (const doc of querySnapshot.docs) {
+    const userData = doc.data();
+    console.log(`[fetchUsers] Processing user: ${doc.id}`);
+    users.push({
+      id: doc.id,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      profileImageUrl: userData.profileImageUrl,
+      isFollowed: true, // If we're fetching following users, they're all followed
+    });
+  }
+
+  console.log(`[fetchUsers] Returning ${users.length} users`);
+  return users;
+};
+
+const getLastVisibleDoc = async (page: number, pageSize: number, onlyFollowing: boolean): Promise<DocumentSnapshot | null> => {
+  console.log(`[getLastVisibleDoc] Starting. Page: ${page}, PageSize: ${pageSize}, OnlyFollowing: ${onlyFollowing}`);
+  
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    console.log('[getLastVisibleDoc] No authenticated user');
+    throw new Error('No authenticated user');
+  }
+
+  const usersRef = collection(firestore, 'users');
+  let q;
+
+  if (onlyFollowing) {
+    console.log('[getLastVisibleDoc] Fetching only following users');
+    const currentUserDoc = await getDoc(doc(firestore, 'users', currentUser.uid));
+    const following = currentUserDoc.data()?.following || [];
+    console.log(`[getLastVisibleDoc] Following array:`, following);
+    
+    if (following.length === 0) {
+      console.log('[getLastVisibleDoc] User is not following anyone, returning null');
+      return null;
+    }
+
+    q = query(usersRef, where(doc.id, 'in', following), limit(page * pageSize));
+    console.log('[getLastVisibleDoc] Query created for following users');
+  } else {
+    q = query(usersRef, limit(page * pageSize));
+    console.log('[getLastVisibleDoc] Query created for all users');
+  }
+
+  console.log('[getLastVisibleDoc] Executing query');
+  const querySnapshot = await getDocs(q);
+  console.log(`[getLastVisibleDoc] Query snapshot size: ${querySnapshot.size}`);
+
+  const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+  console.log(`[getLastVisibleDoc] Last document: ${lastDoc ? 'found' : 'not found'}`);
+  
+  return lastDoc;
 };
 
 const getLastVisibleUser = async (page: number, pageSize: number): Promise<QueryDocumentSnapshot | null> => {
@@ -264,6 +317,33 @@ export const fetchVideosUser = async (userId: string): Promise<Video[]> => {
       console.error('[fetchVideosUser] Error message:', error.message);
       console.error('[fetchVideosUser] Error stack:', error.stack);
     }
+    throw error;
+  }
+};
+
+export const followUser = async (userId: string) => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No authenticated user');
+  }
+
+  const userRef = doc(firestore, 'users', userId);
+  const currentUserRef = doc(firestore, 'users', currentUser.uid);
+
+  try {
+    // Add the current user to the followed user's followers list
+    await updateDoc(userRef, {
+      followers: arrayUnion(currentUser.uid)
+    });
+
+    // Add the followed user to the current user's following list
+    await updateDoc(currentUserRef, {
+      following: arrayUnion(userId)
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error following user:', error);
     throw error;
   }
 };

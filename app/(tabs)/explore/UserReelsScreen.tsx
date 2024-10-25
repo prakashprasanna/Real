@@ -6,7 +6,7 @@ import StackHeader from '@/app/components/StackHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VideoList } from '@/app/components/VideoComponents/VideoList';
 import { useDispatch, useSelector } from 'react-redux';
-import { setVideosUser, setCurrentIndex } from '@/Redux/videosSlice';
+import { setVideos, setVideosUser, setCurrentIndex } from '@/Redux/videosSlice';
 import { RootState } from '@/Redux/store';
 
 export default function UserReelsScreen() {
@@ -14,37 +14,80 @@ export default function UserReelsScreen() {
   const dispatch = useDispatch();
   const { user } = useLocalSearchParams();
   const [userData, setUserData] = useState<User | null>(null);
+  const [isLoggedInUser, setIsLoggedInUser] = useState(false);
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const userVideos = useSelector((state: RootState) => state.videos.userVideos);
+  const { videos, userVideos } = useSelector((state: RootState) => state.videos);
+  const loggedInUserId = useSelector((state: RootState) => state.auth.userId);
 
   useEffect(() => {
+    console.log("UserReelsScreen: Component mounted or user changed");
+    console.log("Raw user data:", user);
     if (user) {
       const parsedUser: User = typeof user === 'string' ? JSON.parse(user) : user;
+      console.log("Parsed User:", parsedUser);
+      console.log("Logged In User ID:", loggedInUserId);
+      const isLoggedIn = parsedUser.id === loggedInUserId;
+      console.log("Is Logged In User:", isLoggedIn);
       setUserData(parsedUser);
+      setIsLoggedInUser(isLoggedIn);
       checkFavoriteStatus(parsedUser.id);
-      loadUserVideos(parsedUser.id);
+      loadUserVideos(parsedUser.id, isLoggedIn);
     }
-  }, [user]);
+  }, [user, loggedInUserId]);
+
+  const loadUserVideos = async (userId: string, isLoggedIn: boolean) => {
+    console.log("loadUserVideos called with userId:", userId, "isLoggedIn:", isLoggedIn);
+    try {
+      setLoading(true);
+      const fetchedVideos = await fetchVideosUser(userId);
+      console.log("Fetched videos:", fetchedVideos.length);
+      if (isLoggedIn) {
+        console.log("Dispatching setVideos");
+        dispatch(setVideos(fetchedVideos));
+      } else {
+        console.log("Dispatching setVideosUser");
+        dispatch(setVideosUser(fetchedVideos));
+      }
+    } catch (error) {
+      console.error('Error fetching user videos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVideoPress = (video: Video) => {
+    console.log("handleVideoPress called in UserReelsScreen with video:", video.id);
+    console.log("isLoggedInUser:", isLoggedInUser);
+    const videosToUse = isLoggedInUser ? videos : userVideos;
+    console.log("Videos to use:", videosToUse.length);
+    const index = videosToUse.findIndex(v => v.id === video.id);
+    console.log("Video index:", index);
+    dispatch(setCurrentIndex(index));
+    
+    const params = {
+      isLoggedInUser: isLoggedInUser.toString(),
+      initialIndex: index.toString(),
+    };
+    console.log("Navigating to SwipeableVideoFeedScreen with params:", params);
+    
+    try {
+      router.push({
+        pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
+        params: params,
+      });
+      console.log("Navigation completed");
+    } catch (error) {
+      console.error("Navigation error:", error);
+    }
+  };
 
   const checkFavoriteStatus = async (userId: string) => {
     const favorites = await AsyncStorage.getItem('favorites');
     if (favorites) {
       const favoritesArray = JSON.parse(favorites);
       setIsFavorite(favoritesArray.some((fav: User) => fav.id === userId));
-    }
-  };
-
-  const loadUserVideos = async (userId: string) => {
-    try {
-      const fetchedVideos = await fetchVideosUser(userId);
-      dispatch(setVideosUser(fetchedVideos));
-    } catch (error) {
-      console.error('Error fetching user videos:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -66,22 +109,10 @@ export default function UserReelsScreen() {
     }
   };
 
-  const handleVideoPress = (video: Video) => {
-    const index = userVideos.findIndex(v => v.id === video.id);
-    dispatch(setCurrentIndex(index));
-    router.push({
-      pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
-      params: {
-        videos: userVideos.map(v => v.downloadURL),
-        initialIndex: index,
-      },
-    });
-  };
-
   const handleRefresh = async () => {
     setLoading(true);
     if (userData) {
-      await loadUserVideos(userData.id);
+      await loadUserVideos(userData.id, isLoggedInUser);
     }
   };
 
@@ -100,7 +131,7 @@ export default function UserReelsScreen() {
         console.log('Profile Image URL:', parsedUser.profileImageUrl);
         setUserData(parsedUser);
         checkFavoriteStatus(parsedUser.id);
-        loadUserVideos(parsedUser.id);
+        loadUserVideos(parsedUser.id, isLoggedInUser);
       } catch (error) {
         console.error('Error parsing user data:', error);
       }
@@ -137,9 +168,9 @@ export default function UserReelsScreen() {
         <Text style={styles.loadingText}>Loading videos...</Text>
       ) : (
         <VideoList
-          videos={userVideos}
+          videos={isLoggedInUser ? videos : userVideos}
           onVideoPress={handleVideoPress}
-          onRefresh={() => userData ? loadUserVideos(userData.id) : Promise.resolve()}
+          onRefresh={() => userData ? loadUserVideos(userData.id, isLoggedInUser) : Promise.resolve()}
           onDeleteVideo={handleDeleteVideo}
         />
       )}

@@ -1,30 +1,31 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, Text, Dimensions } from 'react-native';
 import { SwipeableVideoFeed } from '../../components/VideoComponents/SwipeableVideoFeed';
 import { useLocalSearchParams } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/Redux/store';
-import { useDispatch } from 'react-redux';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function SwipeableVideoFeedScreen() {
-  const { videos, initialIndex } = useLocalSearchParams<{ videos: string, initialIndex: string }>();
-  console.log("SwipeableVideoFeedScreen params VIDEOS:", videos);
-  console.log("SwipeableVideoFeedScreen params INITIAL INDEX:", initialIndex);
+  console.log("SwipeableVideoFeedScreen component rendered");
 
-  const { videos: storeVideos, currentIndex } = useSelector((state: RootState) => state.videos);
-  console.log("SwipeableVideoFeedScreen STORE VIDEOS:", storeVideos.length);
-  console.log("SwipeableVideoFeedScreen CURRENT INDEX:", currentIndex);
+  const { isLoggedInUser, initialIndex } = useLocalSearchParams<{ isLoggedInUser: string, initialIndex: string }>();
+  
+  const { videos, userVideos, currentIndex } = useSelector((state: RootState) => state.videos);
+  
+  const videosToUse = isLoggedInUser === 'true' ? videos : userVideos;
+  const videoUrls = videosToUse.map(video => video.downloadURL);
 
-  const videoUrls = storeVideos.map(video => video.downloadURL);
-
-  const dispatch = useDispatch();
-
-  // const handleReorder = (index: number) => {
-  //   dispatch(reorderVideos(index));
-  // };
-
+  useEffect(() => {
+    console.log("SwipeableVideoFeedScreen mounted");
+    console.log("IS LOGGED IN USER:", isLoggedInUser);
+    console.log("INITIAL INDEX:", initialIndex);
+    console.log("VIDEOS:", videos.length);
+    console.log("USER VIDEOS:", userVideos.length);
+    console.log("VIDEOS TO USE:", videosToUse.length);
+    console.log("VIDEO URLS:", videoUrls.length);
+  }, [isLoggedInUser, initialIndex, videos, userVideos]);
 
   return (
     <View style={styles.container}>
@@ -32,7 +33,7 @@ export default function SwipeableVideoFeedScreen() {
         <View style={styles.feedContainer}>
           <SwipeableVideoFeed 
             videos={videoUrls} 
-            initialIndex={Math.min(currentIndex, videoUrls.length - 1)} 
+            initialIndex={Math.min(parseInt(initialIndex) || 0, videoUrls.length - 1)} 
           />
         </View>
       ) : (
@@ -41,6 +42,8 @@ export default function SwipeableVideoFeedScreen() {
     </View>
   );
 }
+
+// ... (styles remain the same)
 
 const styles = StyleSheet.create({
   container: {

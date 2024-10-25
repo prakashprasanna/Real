@@ -1,39 +1,140 @@
-import React from 'react';
-import { TextInput, StyleSheet, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { TextInput, StyleSheet, View, FlatList, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { User, fetchUsers, followUser } from '../../api/destinationsApi';
+import { useRouter } from 'expo-router';
 
-interface SearchBarProps {
-  value: string;
-  onChangeText: (text: string) => void;
-  onSubmit: () => void;
-}
+const SearchBar: React.FC = () => {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
-const SearchBar: React.FC<SearchBarProps> = ({ value, onChangeText, onSubmit }) => {
+  useEffect(() => {
+    fetchUsers(1, 100).then(users => setAllUsers(users));
+  }, []);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery.length > 2) {
+        handleSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+        setShowResults(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const handleSearch = (text: string) => {
+    const filteredUsers = allUsers.filter(user => 
+      user.firstName.toLowerCase().includes(text.toLowerCase()) ||
+      user.lastName.toLowerCase().includes(text.toLowerCase())
+    );
+    setSearchResults(filteredUsers);
+    setShowResults(true);
+  };
+
+  const handleUserPress = (user: User) => {
+    router.push({
+      pathname: '/(tabs)/explore/UserReelsScreen',
+      params: { 
+        user: JSON.stringify({
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          profileImageUrl: user.profileImageUrl,
+        })
+      }
+    });
+    setSearchQuery('');
+    setShowResults(false);
+  };
+
+  const handleFollowUser = async (userId: string) => {
+    try {
+      await followUser(userId);
+      // Update the local state to reflect the change
+      setAllUsers(prevUsers =>
+        prevUsers.map(user =>
+          user.id === userId
+            ? { ...user, isFollowed: true }
+            : user
+        )
+      );
+      setSearchResults(prevResults =>
+        prevResults.map(user =>
+          user.id === userId
+            ? { ...user, isFollowed: true }
+            : user
+        )
+      );
+    } catch (error) {
+      console.error('Error following user:', error);
+      // Handle error (e.g., show an error message to the user)
+    }
+  };
+
+  const renderSearchResult = ({ item }: { item: User }) => (
+    <View style={styles.resultItem}>
+      <TouchableOpacity
+        style={styles.nameContainer}
+        onPress={() => handleUserPress(item)}
+      >
+        <Text style={styles.resultName}>{`${item.firstName} ${item.lastName}`}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.followButton, item.isFollowed && styles.followedButton]}
+        onPress={() => handleFollowUser(item.id)}
+        disabled={item.isFollowed}
+      >
+        <Text style={styles.followButtonText}>
+          {item.isFollowed ? 'Following' : 'Follow'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <Ionicons name="search" size={20} color="#888" style={styles.icon} />
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChangeText}
-        onSubmitEditing={onSubmit}
-        placeholder="Search Users..."
-        placeholderTextColor="#888"
-        returnKeyType="search"
-      />
+      <View style={styles.searchInputContainer}>
+        <Ionicons name="search" size={20} color="#888" style={styles.icon} />
+        <TextInput
+          style={styles.input}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search Users..."
+          placeholderTextColor="#888"
+          returnKeyType="search"
+        />
+      </View>
+      {showResults && (
+        <View style={styles.resultsContainer}>
+          <FlatList
+            data={searchResults}
+            renderItem={renderSearchResult}
+            keyExtractor={(item) => item.id}
+            ListEmptyComponent={<Text style={styles.emptyResult}>No results found</Text>}
+          />
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    marginHorizontal: 10,
+    marginVertical: 10,
+  },
+  searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 20,
     padding: 10,
-    marginHorizontal: 10,
-    marginVertical: 10,
   },
   icon: {
     marginRight: 10,
@@ -42,6 +143,52 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 40,
     fontSize: 16,
+  },
+  resultsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    marginTop: 5,
+    maxHeight: 300,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  resultItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  nameContainer: {
+    flex: 1,
+  },
+  resultName: {
+    fontSize: 16,
+  },
+  followButton: {
+    backgroundColor: '#6bb2be',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+  },
+  followButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  emptyResult: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 16,
+    color: '#888',
+    paddingBottom: 20,
+  },
+  followedButton: {
+    backgroundColor: '#ccc',
   },
 });
 
