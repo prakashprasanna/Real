@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import SearchBar from '../../components/SearchBar';
-import DestinationList from '../../components/DestinationList';
+import UsersList from '../../components/UsersList';
 import { useLocation } from '../../../hooks/useLocation';
 import StackHeader from '@/app/components/StackHeader';
 import { VideoList } from '../../components/VideoComponents/VideoList'; 
 import { useRouter } from 'expo-router';
-import { Destination, fetchDestinations, fetchVideos, Video, deleteVideoAPI } from '../../../api/destinationsApi';
+import { User, fetchUsers, fetchVideos, Video, deleteVideoAPI } from '../../../api/destinationsApi';
 import { useDispatch, useSelector } from 'react-redux';
 import { setVideos, deleteVideo } from '../../../Redux/videosSlice';
 import { RootState } from '../../../Redux/store';
@@ -15,7 +15,7 @@ import { auth } from '@/firebaseConfig';
 export default function Explore() {
   const [searchQuery, setSearchQuery] = useState('');
   const { location, errorMsg } = useLocation();
-  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function Explore() {
   const videos = useSelector((state: RootState) => state.videos.videos);
 
   useEffect(() => {
-    loadDestinations();
+    loadUsers();
     if (userId) {
       loadVideos();
     }
@@ -57,15 +57,15 @@ export default function Explore() {
     }
   };
 
-  const loadDestinations = async () => {
+  const loadUsers = async () => {
     if (loading) return;
     setLoading(true);
     try {
-      const newDestinations = await fetchDestinations(page, 10);
-      setDestinations([...destinations, ...newDestinations]);
+      const newUsers = await fetchUsers(page, 10);
+      setUsers([...users, ...newUsers]);
       setPage(page + 1);
     } catch (error) {
-      console.error('Error fetching destinations:', error);
+      console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
@@ -94,9 +94,9 @@ export default function Explore() {
       <StackHeader detail={'Explore'} />
       <View style={styles.container}>
         <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
-        <DestinationList
-          destinations={destinations}
-          onLoadMore={loadDestinations}
+        <UsersList
+          users={users}
+          onLoadMore={loadUsers}
           loading={loading}
         />
         <VideoList 

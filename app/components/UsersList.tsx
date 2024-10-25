@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FlatList, View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
-import { Destination } from '../../api/destinationsApi';
+import { User, fetchUsers } from '../../api/destinationsApi';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons'; 
@@ -9,31 +9,58 @@ import FilterButtons from './FilterButtons';
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width * 0.2;
 
-type DestinationListProps = {
-  destinations: Destination[];
-  onLoadMore: () => void;
-  loading: boolean;
+type UsersListProps = {
   isFavoritesList?: boolean;
   onFavoriteRemove?: (id: string) => void;
 };
 
-
-export default function DestinationList({ 
-  destinations, 
-  onLoadMore, 
-  loading, 
+export default function UsersList({ 
   isFavoritesList = false,
   onFavoriteRemove
-}: DestinationListProps) {
+}: UsersListProps) {
   const router = useRouter();
+  const [users, setUsers] = useState<User[]>([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
   const filters = ['All', 'Fasion', 'Shopping', 'Food', 'Games'];
+  const pageSize = 10;
+
+  useEffect(() => {
+    loadUsers();
+  }, [page]);
+
+  const loadUsers = async () => {
+    if (loading || !hasMore) return;
+    setLoading(true);
+    try {
+      const fetchedUsers = await fetchUsers(page, pageSize);
+      if (fetchedUsers.length === 0) {
+        setHasMore(false);
+      } else {
+        setUsers(prevUsers => [...prevUsers, ...fetchedUsers]);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMoreUsers = () => {
+    if (hasMore && !loading) {
+      setPage(prevPage => prevPage + 1);
+    }
+  };
 
   const handleFilterPress = (filter: string) => {
     setActiveFilter(filter);
-    // Here you would typically filter the destinations based on the selected filter
-    // For now, we'll just log the selected filter
     console.log('Selected filter:', filter);
+    // Reset users, page, and hasMore when filter changes
+    setUsers([]);
+    setPage(1);
+    setHasMore(true);
   };
 
   const handleFavoriteRemove = async (id: string) => {
@@ -43,15 +70,16 @@ export default function DestinationList({
       try {
         const favoritesJson = await AsyncStorage.getItem('favorites');
         let favorites = favoritesJson ? JSON.parse(favoritesJson) : [];
-        favorites = favorites.filter((fav: Destination) => fav.id !== id);
+        favorites = favorites.filter((fav: User) => fav.id !== id);
         await AsyncStorage.setItem('favorites', JSON.stringify(favorites));
+        setUsers(users.filter(user => user.id !== id));
       } catch (error) {
         console.error('Error removing favorite:', error);
       }
     }
   };
 
-  const renderDestinationItem = ({ item }: { item: Destination }) => (
+  const renderDestinationItem = ({ item }: { item: User }) => (
     <View style={styles.destinationItem}>
       <TouchableOpacity
         style={styles.destinationContent}
@@ -59,10 +87,7 @@ export default function DestinationList({
           pathname: '/(tabs)/explore/DestinationDetailScreen',
           params: { destination: JSON.stringify(item) }
         })}>
-        <Image source={{ uri: item.image }} style={styles.destinationImage} />
-        {/* <View style={styles.destinationInfo}>
-          <Text style={styles.destinationName}>{item.name}</Text>
-        </View> */}
+        <Image source={{ uri: item.profileImageUrl }} style={styles.destinationImage} />
       </TouchableOpacity>
       {isFavoritesList && (
         <TouchableOpacity 
@@ -73,7 +98,7 @@ export default function DestinationList({
         </TouchableOpacity>
       )}
       <View style={styles.nameContainer}>
-        <Text style={styles.nameBelowImage}>{item.name}</Text>
+        <Text style={styles.nameBelowImage}>{item.firstName}</Text>
       </View>
     </View>
   );
@@ -103,23 +128,23 @@ export default function DestinationList({
       <View style={styles.arrowContainer}>
         <Ionicons name="arrow-forward" size={24} color="black" />
       </View>
-      {destinations.length === 0 ? (
+      {users.length === 0 && !loading ? (
         renderEmptyList()
       ) : (
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={true}
-        data={destinations}
-        renderItem={renderDestinationItem}
-        keyExtractor={(item) => item.id}
-        onEndReached={onLoadMore}
-        onEndReachedThreshold={0.1}
-        ListFooterComponent={() => loading && <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20,alignContent:'center' }} />}
-        contentContainerStyle={styles.listContent}
-        snapToInterval={ITEM_WIDTH + 20}
-        decelerationRate="fast"
-      />
-    )}
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={true}
+          data={users}
+          renderItem={renderDestinationItem}
+          keyExtractor={(item) => item.id}
+          onEndReached={loadMoreUsers}
+          onEndReachedThreshold={0.1}
+          ListFooterComponent={() => loading && <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20, alignContent:'center' }} />}
+          contentContainerStyle={styles.listContent}
+          snapToInterval={ITEM_WIDTH + 20}
+          decelerationRate="fast"
+        />
+      )}
     </View>
   );
 }

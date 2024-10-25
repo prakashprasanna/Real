@@ -1,6 +1,6 @@
 import { storage } from '../firebaseConfig';
 import { ref, listAll, getDownloadURL, getStorage, deleteObject } from 'firebase/storage';
-import { collection, getFirestore, query, where, getDocs, QueryDocumentSnapshot, deleteDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, getFirestore, query, where, getDocs, QueryDocumentSnapshot, deleteDoc, doc, getDoc, limit, startAfter, orderBy } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 export interface Video {
@@ -12,28 +12,88 @@ export interface Video {
   authorizedViewers: string[];
 }
 
-export interface Destination {
+export interface User {
   id: string;
-  name: string;
-  description: string;
-  image: string;
+  firstName: string;
+  lastName: string;
+  profileImageUrl: string;
 }
 
-export const fetchDestinations = async (page: number, limit: number): Promise<Destination[]> => {
+export const fetchUsers = async (page: number, pageSize: number): Promise<User[]> => {
+  console.log(`[fetchUsers] Starting to fetch users. Page: ${page}, PageSize: ${pageSize}`);
+  const startTime = Date.now();
+
+  // Add validation for page and pageSize
+  if (page < 1) {
+    console.error('[fetchUsers] Invalid page number:', page);
+    return [];
+  }
+  if (pageSize < 1) {
+    console.error('[fetchUsers] Invalid page size:', pageSize);
+    return [];
+  }
+
   try {
-    const response = await fetch(`https://randomuser.me/api/?results=${limit}&seed=${page}`);
-    const data = await response.json();
-    
-    return data.results.map((user: any, index: number) => ({
-      id: `${page}-${index}`,
-      name: `${user.name.first} ${user.name.last}`,
-      description: `This is ${user.name.first}'s shopping item. Lorem ipsum dolor sit amet, consectetur adipiscing elit.`,
-      image: user.picture.large,
-    }));
+    const db = getFirestore();
+    const usersRef = collection(db, 'users');
+    let usersQuery;
+
+    if (page === 1) {
+      usersQuery = query(usersRef, orderBy('firstName'), limit(pageSize));
+      console.log('[fetchUsers] First page query created');
+    } else {
+      const lastVisibleUser = await getLastVisibleUser(page - 1, pageSize);
+      if (!lastVisibleUser) {
+        console.log('[fetchUsers] No more users to fetch');
+        return [];
+      }
+      console.log('[fetchUsers] Last visible user:', lastVisibleUser.id);
+      usersQuery = query(usersRef, orderBy('name'), startAfter(lastVisibleUser), limit(pageSize));
+      console.log('[fetchUsers] Subsequent page query created');
+    }
+
+    const querySnapshot = await getDocs(usersQuery);
+    console.log('[fetchUsers] Query snapshot obtained. Size:', querySnapshot.size);
+
+    if (querySnapshot.empty) {
+      console.log('[fetchUsers] No users found for this query.');
+      return [];
+    }
+
+    const users: User[] = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      console.log('[fetchUsers] Processing user:', doc.id, data);
+      return {
+        id: doc.id,
+        firstName: data.firstName || 'Unknown',
+        lastName: data.lastName || '',
+        profileImageUrl: data.profileImageUrl || '',
+      };
+    });
+
+    console.log('[fetchUsers] Processed users count:', users.length);
+    console.log('[fetchUsers] Fetch operation completed in', Date.now() - startTime, 'ms');
+    return users;
   } catch (error) {
-    console.error('Error fetching destinations:', error);
+    console.error('[fetchUsers] Error fetching users:', error);
+    if (error instanceof Error) {
+      console.error('[fetchUsers] Error name:', error.name);
+      console.error('[fetchUsers] Error message:', error.message);
+      console.error('[fetchUsers] Error stack:', error.stack);
+    }
     throw error;
   }
+};
+
+const getLastVisibleUser = async (page: number, pageSize: number): Promise<QueryDocumentSnapshot | null> => {
+  const db = getFirestore();
+  const usersRef = collection(db, 'users');
+  const q = query(usersRef, orderBy('name'), limit(page * pageSize));
+  const querySnapshot = await getDocs(q);
+  if (querySnapshot.empty) {
+    return null;
+  }
+  return querySnapshot.docs[querySnapshot.docs.length - 1];
 };
 
 export const fetchVideos = async (): Promise<Video[]> => {
