@@ -93,7 +93,7 @@ export default function Explore() {
     <>
       <StackHeader detail={'Explore'} />
       <View style={styles.container}>
-        <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+        {/* <SearchBar value={searchQuery} onChangeText={setSearchQuery} /> */}
         <UsersList
           users={users}
           onLoadMore={loadUsers}

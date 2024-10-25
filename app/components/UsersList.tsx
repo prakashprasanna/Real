@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { FlatList, View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FlatList, View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, RefreshControl } from 'react-native';
 import { User, fetchUsers } from '../../api/destinationsApi';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons'; 
 import FilterButtons from './FilterButtons';
+import SearchBar from './SearchBar';
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width * 0.2;
@@ -20,16 +21,23 @@ export default function UsersList({
 }: UsersListProps) {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const filters = ['All', 'Fasion', 'Shopping', 'Food', 'Games'];
   const pageSize = 10;
 
   useEffect(() => {
     loadUsers();
   }, [page]);
+
+  useEffect(() => {
+    filterUsers();
+  }, [users, searchQuery, activeFilter]);
 
   const loadUsers = async () => {
     if (loading || !hasMore) return;
@@ -54,13 +62,47 @@ export default function UsersList({
     }
   };
 
-  const handleFilterPress = (filter: string) => {
-    setActiveFilter(filter);
-    console.log('Selected filter:', filter);
-    // Reset users, page, and hasMore when filter changes
+  const handleRefresh = async () => {
+    setRefreshing(true);
     setUsers([]);
     setPage(1);
     setHasMore(true);
+    await loadUsers();
+    setRefreshing(false);
+  };
+
+  const handleFilterPress = (filter: string) => {
+    setActiveFilter(filter);
+    console.log('Selected filter:', filter);
+    setUsers([]);
+    setPage(1);
+    setHasMore(true);
+  };
+
+  const filterUsers = useCallback(() => {
+    let result = users;
+    
+    if (searchQuery) {
+      result = result.filter(user => 
+        user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.lastName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    if (activeFilter !== 'All') {
+      // Assuming each user has a 'category' field. Adjust this based on your actual data structure.
+      result = result.filter(user => user.category === activeFilter);
+    }
+    
+    setFilteredUsers(result);
+  }, [users, searchQuery, activeFilter]);
+
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+  };
+
+  const handleSearchSubmit = () => {
+    console.log('Search submitted:', searchQuery);
   };
 
   const handleFavoriteRemove = async (id: string) => {
@@ -120,6 +162,11 @@ export default function UsersList({
 
   return (
     <View style={styles.container}>
+      <SearchBar
+        value={searchQuery}
+        onChangeText={handleSearch}
+        onSubmit={handleSearchSubmit}
+      />
       <FilterButtons
         filters={filters}
         activeFilter={activeFilter}
@@ -128,13 +175,13 @@ export default function UsersList({
       <View style={styles.arrowContainer}>
         <Ionicons name="arrow-forward" size={24} color="black" />
       </View>
-      {users.length === 0 && !loading ? (
+      {filteredUsers.length === 0 && !loading && !refreshing ? (
         renderEmptyList()
       ) : (
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={true}
-          data={users}
+          data={filteredUsers}
           renderItem={renderDestinationItem}
           keyExtractor={(item) => item.id}
           onEndReached={loadMoreUsers}
@@ -143,6 +190,12 @@ export default function UsersList({
           contentContainerStyle={styles.listContent}
           snapToInterval={ITEM_WIDTH + 20}
           decelerationRate="fast"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+            />
+          }
         />
       )}
     </View>
@@ -151,7 +204,7 @@ export default function UsersList({
 
 const styles = StyleSheet.create({
   container: {
-    height: '25%',
+    height: '38%',
     marginBottom: 10, 
   },
   carouselContainer: {
@@ -180,13 +233,13 @@ const styles = StyleSheet.create({
     marginRight: 20,
     backgroundColor: 'white',
     borderRadius: 10,
-    overflow: 'visible', // Changed from 'hidden' to 'visible'
+    overflow: 'visible',
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    //paddingBottom: 20, // Add padding at the bottom for the name
+    height: 100,
   },
   destinationContent: {
     flex: 1,
@@ -234,7 +287,7 @@ const styles = StyleSheet.create({
   },
   nameContainer: {
     position: 'absolute',
-    bottom: -25, // Adjust this value to position the name below the image
+    bottom: -25,
     left: 0,
     right: 0,
     alignItems: 'center',

@@ -5,9 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 interface SearchBarProps {
   value: string;
   onChangeText: (text: string) => void;
+  onSubmit: () => void;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ value, onChangeText }) => {
+const SearchBar: React.FC<SearchBarProps> = ({ value, onChangeText, onSubmit }) => {
   return (
     <View style={styles.container}>
       <Ionicons name="search" size={20} color="#888" style={styles.icon} />
@@ -15,8 +16,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChangeText }) => {
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
+        onSubmitEditing={onSubmit}
         placeholder="Search Users..."
         placeholderTextColor="#888"
+        returnKeyType="search"
       />
     </View>
   );
