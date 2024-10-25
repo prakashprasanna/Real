@@ -203,3 +203,68 @@ export const deleteVideoAPI = async (videoId: string): Promise<void> => {
     throw error;
   }
 };
+
+
+export const fetchVideosUser = async (userId: string): Promise<Video[]> => {
+  console.log(`[fetchVideosUser] Starting to fetch videos for user: ${userId}`);
+  const startTime = Date.now();
+
+  try {
+    const db = getFirestore();
+    const storage = getStorage();
+    console.log('[fetchVideosUser] Firestore and Storage instances obtained');
+
+    const videosRef = collection(db, 'videos');
+    const userVideosQuery = query(videosRef, where('uploadedBy', '==', userId));
+    console.log('[fetchVideosUser] User videos query created');
+
+    const querySnapshot = await getDocs(userVideosQuery);
+    console.log('[fetchVideosUser] Query snapshot obtained. Size:', querySnapshot.size);
+
+    if (querySnapshot.empty) {
+      console.log('[fetchVideosUser] No videos found for this user.');
+      return [];
+    }
+
+    const videos: Video[] = [];
+    for (const doc of querySnapshot.docs) {
+      console.log('[fetchVideosUser] Processing document:', doc.id);
+      const data = doc.data();
+      console.log('[fetchVideosUser] Document data:', JSON.stringify(data, null, 2));
+
+      if (data.filename) {
+        try {
+          const storageRef = ref(storage, `videos/${userId}/${data.filename}`);
+          const downloadURL = await getDownloadURL(storageRef);
+
+          videos.push({
+            id: doc.id,
+            filename: data.filename,
+            downloadURL: downloadURL,
+            uploadedBy: userId,
+            uploadedAt: data.uploadedAt ? data.uploadedAt.toDate().toISOString() : null,
+            authorizedViewers: data.authorizedViewers || [],
+          });
+          console.log('[fetchVideosUser] Video added:', doc.id);
+        } catch (error) {
+          console.error(`[fetchVideosUser] Error getting download URL for ${data.filename}:`, error);
+        }
+      } else {
+        console.warn('[fetchVideosUser] Skipping document due to missing filename:', doc.id);
+      }
+    }
+
+    console.log('[fetchVideosUser] Processed videos count:', videos.length);
+    console.log('[fetchVideosUser] Fetch operation completed in', Date.now() - startTime, 'ms');
+    return videos;
+  } catch (error) {
+    console.error('[fetchVideosUser] Error fetching videos:', error);
+    if (error instanceof Error) {
+      console.error('[fetchVideosUser] Error name:', error.name);
+      console.error('[fetchVideosUser] Error message:', error.message);
+      console.error('[fetchVideosUser] Error stack:', error.stack);
+    }
+    throw error;
+  }
+};
+

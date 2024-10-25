@@ -127,7 +127,15 @@ export default function UsersList({
         style={styles.destinationContent}
         onPress={() => router.push({
           pathname: '/(tabs)/explore/UserReelsScreen',
-          params: { destination: JSON.stringify(item) }
+          params: { 
+            user: JSON.stringify({
+              id: item.id,
+              firstName: item.firstName,
+              lastName: item.lastName,
+              profileImageUrl: item.profileImageUrl,
+              // Include any other necessary fields
+            })
+          }
         })}>
         <Image source={{ uri: item.profileImageUrl }} style={styles.destinationImage} />
       </TouchableOpacity>

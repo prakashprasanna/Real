@@ -1,42 +1,50 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { User } from '../../../api/destinationsApi';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { User, Video, fetchVideosUser } from '../../../api/destinationsApi';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import StackHeader from '@/app/components/StackHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCart } from '@/hooks/useCart';
-import { AddToCartButton } from '@/app/components/AddToCartButton';
-import { MaterialIcons } from '@expo/vector-icons';
-import AddToCartModal from '@/app/components/AddToCartModal';
+import { VideoList } from '@/app/components/VideoComponents/VideoList';
+import { useDispatch, useSelector } from 'react-redux';
+import { setVideosUser, setCurrentIndex } from '@/Redux/videosSlice';
+import { RootState } from '@/Redux/store';
 
-// type UserReelsScreenProps = {
-//   route: { params: { destination: Destination } };
-// };
+export default function UserReelsScreen() {
+  const router = useRouter();
+  const dispatch = useDispatch();
+  const { user } = useLocalSearchParams();
+  const [userData, setUserData] = useState<User | null>(null);
 
-export default function UserReelsScreen({ route }: any) {
-    // console.log(route)
-//   const { destination } = route?.params;
-const router = useRouter();
-// console.log(useLocalSearchParams())
-const { destination } = useLocalSearchParams();
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-// Parse the destination if it's a string
-const destinationData = typeof destination === 'string' ? JSON.parse(destination) : destination;
+  const userVideos = useSelector((state: RootState) => state.videos.userVideos);
 
-const [isFavorite, setIsFavorite] = useState(false);
-const [modalVisible, setModalVisible] = useState(false);
-const { addToCart, cart: cartItems } = useCart();
+  useEffect(() => {
+    if (user) {
+      const parsedUser: User = typeof user === 'string' ? JSON.parse(user) : user;
+      setUserData(parsedUser);
+      checkFavoriteStatus(parsedUser.id);
+      loadUserVideos(parsedUser.id);
+    }
+  }, [user]);
 
-useEffect(() => {
-    checkFavoriteStatus();
-  }, []);
-
-  const checkFavoriteStatus = async () => {
+  const checkFavoriteStatus = async (userId: string) => {
     const favorites = await AsyncStorage.getItem('favorites');
-    console.log(favorites)
     if (favorites) {
       const favoritesArray = JSON.parse(favorites);
-      setIsFavorite(favoritesArray.some((fav: User) => fav.id === destinationData.id));
+      setIsFavorite(favoritesArray.some((fav: User) => fav.id === userId));
+    }
+  };
+
+  const loadUserVideos = async (userId: string) => {
+    try {
+      const fetchedVideos = await fetchVideosUser(userId);
+      dispatch(setVideosUser(fetchedVideos));
+    } catch (error) {
+      console.error('Error fetching user videos:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -46,9 +54,9 @@ useEffect(() => {
       let favoritesArray = favorites ? JSON.parse(favorites) : [];
       
       if (isFavorite) {
-        favoritesArray = favoritesArray.filter((fav: User) => fav.id !== destinationData.id);
+        favoritesArray = favoritesArray.filter((fav: User) => fav.id !== userData?.id);
       } else {
-        favoritesArray.push(destinationData);
+        favoritesArray.push(userData);
       }
       
       await AsyncStorage.setItem('favorites', JSON.stringify(favoritesArray));
@@ -58,128 +66,123 @@ useEffect(() => {
     }
   };
 
-  const handleBuy = () => {
+  const handleVideoPress = (video: Video) => {
+    const index = userVideos.findIndex(v => v.id === video.id);
+    dispatch(setCurrentIndex(index));
     router.push({
-      pathname: '/PaymentScreen',
-      params: { destination: JSON.stringify(destinationData) }
+      pathname: '/(tabs)/explore/SwipeableVideoFeedScreen',
+      params: {
+        videos: userVideos.map(v => v.downloadURL),
+        initialIndex: index,
+      },
     });
   };
 
-  const handleAddToCart = () => {
-    addToCart(destinationData);
-    setModalVisible(true);
+  const handleRefresh = async () => {
+    setLoading(true);
+    if (userData) {
+      await loadUserVideos(userData.id);
+    }
   };
 
-  const handleCheckout = () => {
-    setModalVisible(false);
-    router.push({
-      pathname: '/PaymentScreen',
-      params: { destination: JSON.stringify(destinationData) }
-    });
+  const handleDeleteVideo = async (videoId: string) => {
+    // Implement delete functionality if needed
+    console.log('Delete video:', videoId);
   };
+
+  useEffect(() => {
+    console.log('Raw user data:', user);
+    if (user) {
+      let parsedUser: User;
+      try {
+        parsedUser = typeof user === 'string' ? JSON.parse(user) : user;
+        console.log('Parsed User Data:', parsedUser);
+        console.log('Profile Image URL:', parsedUser.profileImageUrl);
+        setUserData(parsedUser);
+        checkFavoriteStatus(parsedUser.id);
+        loadUserVideos(parsedUser.id);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    } else {
+      console.log('No user data received');
+    }
+  }, [user]);
 
   return (
-    <>
-    <StackHeader detail={'Detail'} />
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
-      <ScrollView>
-        <Image source={{ uri: destinationData.image }} style={styles.image} />
-        <View style={styles.content}>
-            <View style={styles.header}>
-                <Text style={styles.name}>{destinationData.name}</Text>
-                <TouchableOpacity onPress={toggleFavorite} style={styles.favoriteButton}>
-                <Text>{isFavorite ? '❌ Remove from Favorites' : '⭐ Add to Favorites'}</Text>
-                </TouchableOpacity>
-            </View>
-            <Text style={styles.description}>{destinationData.description}</Text>
-            <View style={styles.cartView}>
-              <AddToCartButton item={destinationData} onPress={handleAddToCart}/>
-              <TouchableOpacity onPress={handleBuy} style={styles.buyButton}>
-                <MaterialIcons name="payment" size={24} color="white" />
-                <Text style={styles.buyButtonText}>Buy Now</Text>
-              </TouchableOpacity>
-            </View>
-        </View>
-      </ScrollView>
-    </View>
-    <AddToCartModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onCheckout={handleCheckout}
-        cartItems={cartItems}
+      <StackHeader detail={'User Reels'} />
+      {userData && (
+        <View style={styles.userInfoContainer}>
+          {userData.profileImageUrl ? (
+            <Image 
+        source={{ uri: userData.profileImageUrl }}
+        style={styles.profileImage}
+        onError={(e) => console.log('Image loading error:', JSON.stringify(e.nativeEvent, null, 2))}
       />
-    </>
+    ) : (
+      <View style={[styles.profileImage, { backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }]}>
+        <Text>{userData.firstName[0]}{userData.lastName[0]}</Text>
+      </View>
+    )}
+    <View style={styles.userInfo}>
+      <Text style={styles.userName}>{`${userData.firstName} ${userData.lastName}`}</Text>
+      <TouchableOpacity onPress={toggleFavorite} style={styles.favoriteButton}>
+        <Text>{isFavorite ? '❌ Unfollow' : '⭐ Follow'}</Text>
+            </TouchableOpacity>
+          </View> 
+        </View>
+      )}
+      {loading ? (
+        <Text style={styles.loadingText}>Loading videos...</Text>
+      ) : (
+        <VideoList
+          videos={userVideos}
+          onVideoPress={handleVideoPress}
+          onRefresh={() => userData ? loadUserVideos(userData.id) : Promise.resolve()}
+          onDeleteVideo={handleDeleteVideo}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
   },
-  image: {
-    width: '100%',
-    height: 300,
-  },
-  content: {
+  userInfoContainer: {
+    flexDirection: 'row',
     padding: 20,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f0f0f0', // Add a background color
   },
-  description: {
-    fontSize: 16,
-    lineHeight: 24,
+  userInfo: {
+    marginLeft: 20,
+    flex: 1,
   },
-  backButton: {
-    padding: 10,
-    marginTop: 10, // Adjust this value based on your status bar height
-  },
-  backButtonText: {
-    fontSize: 18,
-    color: '#6bb2be', // Or any color that fits your design
+  userName: {
+    fontSize: 20,
     fontWeight: 'bold',
   },
   favoriteButton: {
-    marginTop: 1,
+    marginTop: 10,
     padding: 10,
-    backgroundColor: '#b2b2b2',
+    backgroundColor: '#f0f0f0',
     borderRadius: 5,
+    alignSelf: 'flex-start',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  buyButton: {
+  loadingText: {
+    textAlign: 'center',
     marginTop: 20,
-    backgroundColor: '#6bb2be',
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    width: '45%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-  },
-  buyButtonText: {
-    color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  cartView: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  addToCartButton: {
-    backgroundColor: '#4CAF50',
-    padding: 10,
-    borderRadius: 5,
-    marginRight: 10,
   },
 });
