@@ -193,7 +193,7 @@ export default function UsersList({
 
 const styles = StyleSheet.create({
   container: {
-    height: Platform.OS === 'ios' ? '38%' : '43%',
+    height: Platform.OS === 'ios' ? '40%' : '43%',
     marginBottom: 10, 
   },
   carouselContainer: {
