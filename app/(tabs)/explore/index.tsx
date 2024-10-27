@@ -110,9 +110,6 @@ export default function Explore() {
       <View style={styles.container}>
         {/* <SearchBar value={searchQuery} onChangeText={setSearchQuery} onSubmit={() => {}} /> */}
         <UsersList
-          users={users}
-          onLoadMore={loadUsers}
-          loading={loading}
           onlyFollowing={true}
         />
         <VideoList 

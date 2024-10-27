@@ -45,10 +45,15 @@ export default function UsersList({
       if (fetchedUsers.length === 0) {
         setHasMore(false);
       } else {
+        // Filter out duplicates
+        const newUsers = fetchedUsers.filter(fetchedUser => 
+          !users.some(existingUser => existingUser.id === fetchedUser.id)
+        );
+        
         setUsers(prevUsers => {
-          const newUsers = [...prevUsers, ...fetchedUsers];
-          console.log(`[UsersList] Updated users list. Total users: ${newUsers.length}`);
-          return newUsers;
+          const nu = [...prevUsers, ...newUsers];
+          console.log(`[UsersList] Updated users list. Total users: ${nu.length}`);
+          return nu;
         });
       }
     } catch (error) {

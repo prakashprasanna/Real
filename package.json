@@ -67,6 +67,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/jest": "^29.5.12",
+    "@types/lodash": "^4.17.12",
     "@types/react": "~18.2.45",
     "@types/react-native": "^0.73.0",
     "@types/react-native-event-source": "^1.1.2",
