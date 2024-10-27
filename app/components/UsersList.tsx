@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FlatList, View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, RefreshControl } from 'react-native';
+import { FlatList, View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions, RefreshControl, Platform } from 'react-native';
 import { User, fetchUsers } from '../../api/destinationsApi';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -193,7 +193,7 @@ export default function UsersList({
 
 const styles = StyleSheet.create({
   container: {
-    height: '38%',
+    height: Platform.OS === 'ios' ? '38%' : '43%',
     marginBottom: 10, 
   },
   carouselContainer: {

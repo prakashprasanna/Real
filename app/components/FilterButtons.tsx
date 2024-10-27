@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { ScrollView, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 
 interface FilterButtonsProps {
   filters: string[];
@@ -36,6 +36,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     marginBottom: 10,
     marginLeft: 10,
+    height: Platform.OS === 'ios' ? undefined : 43,
   },
   filterButton: {
     paddingHorizontal: 16,

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
-import { User, Video, fetchVideosUser } from '../../../api/destinationsApi';
+import { User, Video, checkIfFollowing, fetchVideosUser, followUser, unfollowUser } from '../../../api/destinationsApi';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import StackHeader from '@/app/components/StackHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,6 +20,7 @@ export default function UserReelsScreen() {
   const [loading, setLoading] = useState(true);
   const { videos, userVideos } = useSelector((state: RootState) => state.videos);
   const loggedInUserId = useSelector((state: RootState) => state.auth.userId);
+  const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
     console.log("UserReelsScreen: Component mounted or user changed");
@@ -32,10 +33,17 @@ export default function UserReelsScreen() {
       console.log("Is Logged In User:", isLoggedIn);
       setUserData(parsedUser);
       setIsLoggedInUser(isLoggedIn);
-      checkFavoriteStatus(parsedUser.id);
+      checkFollowStatus(parsedUser.id);
       loadUserVideos(parsedUser.id, isLoggedIn);
     }
   }, [user, loggedInUserId]);
+
+  const checkFollowStatus = async (userId: string) => {
+    // This function should check if the logged-in user is following the viewed user
+    // You'll need to implement this in your API
+    const isFollowing = await checkIfFollowing(userId);
+    setIsFollowing(isFollowing);
+  };
 
   const loadUserVideos = async (userId: string, isLoggedIn: boolean) => {
     console.log("loadUserVideos called with userId:", userId, "isLoggedIn:", isLoggedIn);
@@ -91,21 +99,18 @@ export default function UserReelsScreen() {
     }
   };
 
-  const toggleFavorite = async () => {
+  const toggleFollow = async () => {
+    if (!userData) return;
+  
     try {
-      const favorites = await AsyncStorage.getItem('favorites');
-      let favoritesArray = favorites ? JSON.parse(favorites) : [];
-      
-      if (isFavorite) {
-        favoritesArray = favoritesArray.filter((fav: User) => fav.id !== userData?.id);
+      if (isFollowing) {
+        await unfollowUser(userData.id);
       } else {
-        favoritesArray.push(userData);
+        await followUser(userData.id);
       }
-      
-      await AsyncStorage.setItem('favorites', JSON.stringify(favoritesArray));
-      setIsFavorite(!isFavorite);
+      setIsFollowing(!isFollowing);
     } catch (error) {
-      console.error('Error saving favorite:', error);
+      console.error('Error toggling follow status:', error);
     }
   };
 
@@ -156,13 +161,13 @@ export default function UserReelsScreen() {
         <Text>{userData.firstName[0]}{userData.lastName[0]}</Text>
       </View>
     )}
-    <View style={styles.userInfo}>
-      <Text style={styles.userName}>{`${userData.firstName} ${userData.lastName}`}</Text>
-      <TouchableOpacity onPress={toggleFavorite} style={styles.favoriteButton}>
-        <Text>{isFavorite ? '❌ Unfollow' : '⭐ Follow'}</Text>
-            </TouchableOpacity>
-          </View> 
-        </View>
+        <View style={styles.userInfo}>
+          <Text style={styles.userName}>{`${userData.firstName} ${userData.lastName}`}</Text>
+          <TouchableOpacity onPress={toggleFollow} style={isFollowing ? styles.followButton : styles.unFollowButton}>
+            <Text>{isFollowing ? 'Unfollow' : 'Follow'}</Text>
+          </TouchableOpacity>
+        </View> 
+      </View>
       )}
       {loading ? (
         <Text style={styles.loadingText}>Loading videos...</Text>
@@ -215,5 +220,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
+  },
+  followButton: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#ff474c',
+    borderRadius: 5,
+    alignSelf: 'flex-start',
+  },
+  unFollowButton: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#6bb2be',
+    borderRadius: 5,
+    alignSelf: 'flex-start',
+  },
+  followButtonText: {
+    color: '#000',
+    fontWeight: 'bold',
   },
 });

@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { TextInput, StyleSheet, View, FlatList, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { User, fetchUsers, followUser } from '../../api/destinationsApi';
+import { User, fetchUsers, followUser, unfollowUser } from '../../api/destinationsApi';
 import { useRouter } from 'expo-router';
 
-const SearchBar: React.FC = () => {
+interface SearchBarProps {
+  users: User[];
+  onFollowUnfollow: (userId: string, isFollowed: boolean) => Promise<void>;
+}
+
+const SearchBar: React.FC<SearchBarProps> = ({ users, onFollowUnfollow } ) => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -13,6 +18,7 @@ const SearchBar: React.FC = () => {
 
   const fetchAllUsers = useCallback(async () => {
     const users = await fetchUsers(1, 100);
+    console.log('[SearchBar] Fetched all users:', users);
     setAllUsers(users);
   }, []);
 
@@ -59,17 +65,8 @@ const SearchBar: React.FC = () => {
     setShowResults(false);
   };
 
-  const handleFollowUser = async (userId: string) => {
-    try {
-      await followUser(userId);
-      // Refresh the user list after following
-      await fetchAllUsers();
-      // Update search results based on the refreshed user list
-      handleSearch(searchQuery);
-    } catch (error) {
-      console.error('Error following user:', error);
-      // Handle error (e.g., show an error message to the user)
-    }
+  const handleFollowUnfollowUser = async (userId: string, isFollowed: boolean) => {
+    await onFollowUnfollow(userId, isFollowed);
   };
 
   const renderSearchResult = ({ item }: { item: User }) => (
@@ -81,12 +78,11 @@ const SearchBar: React.FC = () => {
         <Text style={styles.resultName}>{`${item.firstName} ${item.lastName}`}</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[styles.followButton, item.isFollowed && styles.followedButton]}
-        onPress={() => handleFollowUser(item.id)}
-        disabled={item.isFollowed}
+        style={[styles.followButton, item.isFollowed && styles.unfollowButton]}
+        onPress={() => handleFollowUnfollowUser(item.id, item.isFollowed)}
       >
         <Text style={styles.followButtonText}>
-          {item?.isFollowed ? 'Following' : 'Follow'}
+          {item?.isFollowed ? 'Unfollow' : 'Follow'}
         </Text>
       </TouchableOpacity>
     </View>
@@ -170,6 +166,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 5,
+  },
+  unfollowButton: {
+    backgroundColor: '#ccc',
   },
   followButtonText: {
     color: '#fff',

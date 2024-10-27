@@ -1,5 +1,5 @@
 import { ref, listAll, getDownloadURL, getStorage, deleteObject } from 'firebase/storage';
-import { getFirestore, where, QueryDocumentSnapshot, deleteDoc, orderBy, documentId } from 'firebase/firestore';
+import { getFirestore, where, QueryDocumentSnapshot, deleteDoc, orderBy, documentId, arrayRemove } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { auth, firestore } from '../firebaseConfig';
 import { 
@@ -380,5 +380,47 @@ export const followUser = async (userId: string) => {
     console.error('Error following user:', error);
     throw error;
   }
+};
+
+export const unfollowUser = async (userId: string) => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No authenticated user');
+  }
+
+  const userRef = doc(firestore, 'users', userId);
+  const currentUserRef = doc(firestore, 'users', currentUser.uid);
+
+  try {
+    // Remove the current user from the unfollowed user's followers list
+    await updateDoc(userRef, {
+      followers: arrayRemove(currentUser.uid)
+    });
+
+    // Remove the unfollowed user from the current user's following list
+    await updateDoc(currentUserRef, {
+      following: arrayRemove(userId)
+    });
+
+    // Clear the user cache to ensure fresh data on next fetch
+    userCache = null;
+
+    return true;
+  } catch (error) {
+    console.error('Error unfollowing user:', error);
+    throw error;
+  }
+};
+
+export const checkIfFollowing = async (userId: string): Promise<boolean> => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('No authenticated user');
+  }
+
+  const currentUserDoc = await getDoc(doc(firestore, 'users', currentUser.uid));
+  const following = currentUserDoc.data()?.following || [];
+
+  return following.includes(userId);
 };
 
