@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { TextInput, StyleSheet, View, FlatList, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { User, fetchUsers, followUser } from '../../api/destinationsApi';
@@ -11,9 +11,14 @@ const SearchBar: React.FC = () => {
   const [showResults, setShowResults] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
 
-  useEffect(() => {
-    fetchUsers(1, 100).then(users => setAllUsers(users));
+  const fetchAllUsers = useCallback(async () => {
+    const users = await fetchUsers(1, 100);
+    setAllUsers(users);
   }, []);
+
+  useEffect(() => {
+    fetchAllUsers();
+  }, [fetchAllUsers]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -33,6 +38,7 @@ const SearchBar: React.FC = () => {
       user.firstName.toLowerCase().includes(text.toLowerCase()) ||
       user.lastName.toLowerCase().includes(text.toLowerCase())
     );
+    console.log('[SearchBar] Filtered users:', filteredUsers);
     setSearchResults(filteredUsers);
     setShowResults(true);
   };
@@ -56,21 +62,10 @@ const SearchBar: React.FC = () => {
   const handleFollowUser = async (userId: string) => {
     try {
       await followUser(userId);
-      // Update the local state to reflect the change
-      setAllUsers(prevUsers =>
-        prevUsers.map(user =>
-          user.id === userId
-            ? { ...user, isFollowed: true }
-            : user
-        )
-      );
-      setSearchResults(prevResults =>
-        prevResults.map(user =>
-          user.id === userId
-            ? { ...user, isFollowed: true }
-            : user
-        )
-      );
+      // Refresh the user list after following
+      await fetchAllUsers();
+      // Update search results based on the refreshed user list
+      handleSearch(searchQuery);
     } catch (error) {
       console.error('Error following user:', error);
       // Handle error (e.g., show an error message to the user)
@@ -91,7 +86,7 @@ const SearchBar: React.FC = () => {
         disabled={item.isFollowed}
       >
         <Text style={styles.followButtonText}>
-          {item.isFollowed ? 'Following' : 'Follow'}
+          {item?.isFollowed ? 'Following' : 'Follow'}
         </Text>
       </TouchableOpacity>
     </View>

@@ -76,7 +76,8 @@ const CACHE_EXPIRATION = 50000; // 50 seconds
 export const fetchUsers = async (
   page: number, 
   pageSize: number, 
-  onlyFollowing: boolean = false
+  onlyFollowing: boolean = false,
+  search: boolean = false
 ): Promise<User[]> => {
   console.log(`[fetchUsers] Starting. Page: ${page}, PageSize: ${pageSize}, OnlyFollowing: ${onlyFollowing}`);
 
@@ -115,13 +116,23 @@ export const fetchUsers = async (
     }
     console.log('[fetchUsers] Query:', q);
     const users = await fetchUsersFromFirestore(q);
+
+    // Fetch the current user's following list
+    const currentUserDoc = await getDoc(doc(firestore, 'users', currentUser.uid));
+    const following1 = currentUserDoc.data()?.following || [];
+
+    // Update isFollowed status for each user
+    const usersWithFollowStatus = users.map(user => ({
+      ...user,
+      isFollowed: following1.includes(user.id)
+    }));
     
     // Update cache
-    userCache = { data: users, timestamp: Date.now() };
+    userCache = { data: search ? usersWithFollowStatus : users, timestamp: Date.now() };
 
     console.log(`[fetchUsers] Returning ${users.length} users`);
     
-    return users;
+    return usersWithFollowStatus;
   } catch (error) {
     console.error('[fetchUsers] Error fetching users:', error);
     throw error;
@@ -360,6 +371,9 @@ export const followUser = async (userId: string) => {
     await updateDoc(currentUserRef, {
       following: arrayUnion(userId)
     });
+
+    // Clear the user cache to ensure fresh data on next fetch
+    userCache = null;
 
     return true;
   } catch (error) {
