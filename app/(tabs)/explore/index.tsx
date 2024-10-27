@@ -1,30 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import SearchBar from '../../components/SearchBar';
-import UsersList from '../../components/UsersList';
 import { useLocation } from '../../../hooks/useLocation';
 import StackHeader from '@/app/components/StackHeader';
 import { VideoList } from '../../components/VideoComponents/VideoList'; 
 import { useRouter } from 'expo-router';
-import { User, fetchUsers, fetchVideos, Video, deleteVideoAPI } from '../../../api/destinationsApi';
+import { fetchVideos, Video, deleteVideoAPI } from '../../../api/destinationsApi';
 import { useDispatch, useSelector } from 'react-redux';
 import { setVideos, deleteVideo, setCurrentIndex } from '../../../Redux/videosSlice';
 import { RootState } from '../../../Redux/store';
 import { auth } from '@/firebaseConfig';
+import UsersContainer from '../../components/UsersContainer';
 
 export default function Explore() {
-  const [searchQuery, setSearchQuery] = useState('');
   const { location, errorMsg } = useLocation();
-  const [users, setUsers] = useState<User[]>([]);
-  const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const dispatch = useDispatch();
   const userId = auth.currentUser?.uid;
   const videos = useSelector((state: RootState) => state.videos.videos);
 
   useEffect(() => {
-    loadUsers();
     if (userId) {
       loadVideos();
     }
@@ -57,19 +51,6 @@ export default function Explore() {
     }
   };
 
-  const loadUsers = async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const newUsers = await fetchUsers(page, 10);
-      setUsers([...users, ...newUsers]);
-      setPage(page + 1);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
   const handleVideoPress = (video: Video) => {
     console.log("handleVideoPress called in Explore with video:", video.id);
     const index = videos.findIndex(v => v.id === video.id);
@@ -95,7 +76,6 @@ export default function Explore() {
 
   const handleDeleteVideo = async (videoId: string) => {
     try {
-      // Assuming you have a deleteVideo function in your API
       await deleteVideoAPI(videoId);
       dispatch(deleteVideo(videoId));
       console.log('Video deleted:', videoId);
@@ -108,10 +88,7 @@ export default function Explore() {
     <>
       <StackHeader detail={'Explore'} />
       <View style={styles.container}>
-        {/* <SearchBar value={searchQuery} onChangeText={setSearchQuery} onSubmit={() => {}} /> */}
-        <UsersList
-          onlyFollowing={true}
-        />
+        <UsersContainer />
         <VideoList 
           videos={videos} 
           onVideoPress={handleVideoPress}  

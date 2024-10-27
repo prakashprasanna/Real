@@ -10,19 +10,26 @@ import SearchBar from './SearchBar';
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width * 0.2;
 
-type UsersListProps = {
+interface UsersListProps {
+  users: User[];
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  onFollowUnfollow: (userId: string, isFollowed: boolean) => Promise<void>;
+  loadUsers: (page: number, pageSize: number, onlyFollowing: boolean) => Promise<User[]>;
   isFavoritesList?: boolean;
   onFavoriteRemove?: (id: string) => void;
   onlyFollowing?: boolean;
-};
+}
 
 export default function UsersList({ 
+  users,
+  setUsers,
+  onFollowUnfollow,
+  loadUsers,
   isFavoritesList = false,
   onFavoriteRemove,
-  onlyFollowing = false
+  onlyFollowing = true
 }: UsersListProps) {
   const router = useRouter();
-  const [users, setUsers] = useState<User[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -32,40 +39,46 @@ export default function UsersList({
   const pageSize = 10;
 
   useEffect(() => {
-    loadUsers();
-  }, [page, onlyFollowing]);
+    if (!Array.isArray(users)) {
+      console.error('[UsersList] Users prop is not an array:', users);
+      setUsers([]);
+    } else {
+      loadMoreUsers();
+    }
+  }, [page, onlyFollowing, users]);
 
-  const loadUsers = async () => {
+  const loadMoreUsers = async () => {
     if (loading || !hasMore) return;
     setLoading(true);
     try {
       console.log(`[UsersList] Fetching users. Page: ${page}, PageSize: ${pageSize}, OnlyFollowing: ${onlyFollowing}`);
-      const fetchedUsers = await fetchUsers(page, pageSize, onlyFollowing);
+      const fetchedUsers = await loadUsers(page, pageSize, onlyFollowing);
+      console.log(`[UsersList] Raw fetched users:`, fetchedUsers);
+      
+      if (!Array.isArray(fetchedUsers)) {
+        console.error('[UsersList] Fetched users is not an array:', fetchedUsers);
+        setHasMore(false);
+        return;
+      }
+      
       console.log(`[UsersList] Fetched ${fetchedUsers.length} users:`, JSON.stringify(fetchedUsers, null, 2));
+      
       if (fetchedUsers.length === 0) {
         setHasMore(false);
       } else {
-        // Filter out duplicates
-        const newUsers = fetchedUsers.filter(fetchedUser => 
-          !users.some(existingUser => existingUser.id === fetchedUser.id)
-        );
-        
         setUsers(prevUsers => {
-          const nu = [...prevUsers, ...newUsers];
-          console.log(`[UsersList] Updated users list. Total users: ${nu.length}`);
-          return nu;
+          const newUsers = [...prevUsers, ...fetchedUsers];
+          const uniqueUsers = newUsers.filter((user, index, self) =>
+            index === self.findIndex((t) => t.id === user.id)
+          );
+          return uniqueUsers;
         });
       }
     } catch (error) {
       console.error('[UsersList] Error fetching users:', error);
+      setHasMore(false);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadMoreUsers = () => {
-    if (hasMore && !loading) {
-      setPage(prevPage => prevPage + 1);
     }
   };
 
@@ -74,7 +87,7 @@ export default function UsersList({
     setUsers([]);
     setPage(1);
     setHasMore(true);
-    await loadUsers();
+    await loadMoreUsers();
     setRefreshing(false);
   };
 
@@ -102,6 +115,15 @@ export default function UsersList({
     }
   };
 
+  const handleFollowUnfollow = async (userId: string, isFollowed: boolean) => {
+    await onFollowUnfollow(userId, isFollowed);
+    setUsers(prevUsers =>
+      prevUsers.map(user =>
+        user.id === userId ? { ...user, isFollowed: !isFollowed } : user
+      )
+    );
+  };
+  
   const renderDestinationItem = ({ item }: { item: User }) => (
     <View style={styles.destinationItem}>
       <TouchableOpacity
@@ -116,12 +138,24 @@ export default function UsersList({
               profileImageUrl: item.profileImageUrl,
             })
           }
-        })}>
-        <Image source={{ uri: item.profileImageUrl }} style={styles.destinationImage} />
+        })}
+      >
+        <Image
+          source={{ uri: item.profileImageUrl }}
+          style={styles.destinationImage}
+        />
       </TouchableOpacity>
+      {/* <TouchableOpacity
+        style={[styles.followButton, item.isFollowed ? styles.unfollowButton : null]}
+        onPress={() => handleFollowUnfollow(item.id, item.isFollowed || false)}
+      >
+        <Text style={styles.followButtonText}>
+          {item.isFollowed ? 'X' : 'follow'}
+        </Text>
+      </TouchableOpacity> */}
       {isFavoritesList && (
-        <TouchableOpacity 
-          style={styles.deleteButton} 
+        <TouchableOpacity
+          style={styles.deleteButton}
           onPress={() => handleFavoriteRemove(item.id)}
         >
           <Text style={styles.deleteButtonText}>X</Text>
@@ -151,11 +185,10 @@ export default function UsersList({
       </Text>
     </View>
   );
-  console.log(`[UsersList] Rendering component. Users count: ${users.length}, Loading: ${loading}, Refreshing: ${refreshing}`);
 
   return (
     <View style={styles.container}>
-      <SearchBar />
+      {/* <SearchBar /> */}
       <FilterButtons
         filters={filters}
         activeFilter={activeFilter}
@@ -173,7 +206,7 @@ export default function UsersList({
           data={users}
           renderItem={renderDestinationItem}
           keyExtractor={(item) => item.id}
-          onEndReached={loadMoreUsers}
+          onEndReached={() => setPage(prevPage => prevPage + 1)}
           onEndReachedThreshold={0.1}
           ListFooterComponent={() => loading && <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20, alignContent:'center' }} />}
           contentContainerStyle={styles.listContent}
@@ -193,7 +226,7 @@ export default function UsersList({
 
 const styles = StyleSheet.create({
   container: {
-    height: Platform.OS === 'ios' ? '40%' : '43%',
+    height: Platform.OS === 'ios' ? '40%' : '100%',
     marginBottom: 10, 
   },
   carouselContainer: {
@@ -303,5 +336,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     color: '#666',
+  },
+  followButton: {
+    backgroundColor: '#6bb2be',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+  },
+  unfollowButton: {
+    backgroundColor: '#FF4040',
+  },
+  followButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    alignSelf: 'center',
   },
 });

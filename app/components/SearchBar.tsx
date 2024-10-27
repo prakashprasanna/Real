@@ -7,9 +7,11 @@ import { useRouter } from 'expo-router';
 interface SearchBarProps {
   users: User[];
   onFollowUnfollow: (userId: string, isFollowed: boolean) => Promise<void>;
+  getLatestUserData: (userId: string) => User | undefined;
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ users, onFollowUnfollow } ) => {
+const SearchBar: React.FC<SearchBarProps> = ({ users, onFollowUnfollow, getLatestUserData, setUsers }) => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -17,7 +19,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ users, onFollowUnfollow } ) => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
 
   const fetchAllUsers = useCallback(async () => {
-    const users = await fetchUsers(1, 100);
+    const users = await fetchUsers(1, 100, false, true);
     console.log('[SearchBar] Fetched all users:', users);
     setAllUsers(users);
   }, []);
@@ -67,26 +69,44 @@ const SearchBar: React.FC<SearchBarProps> = ({ users, onFollowUnfollow } ) => {
 
   const handleFollowUnfollowUser = async (userId: string, isFollowed: boolean) => {
     await onFollowUnfollow(userId, isFollowed);
+    setUsers(prevUsers =>
+      prevUsers.map(user =>
+        user.id === userId ? { ...user, isFollowed: !isFollowed } : user
+      )
+    );
+    setSearchResults(prevResults =>
+      prevResults.map(user =>
+        user.id === userId ? { ...user, isFollowed: !isFollowed } : user
+      )
+    );
+    setAllUsers(prevUsers =>
+      prevUsers.map(user =>
+        user.id === userId ? { ...user, isFollowed: !isFollowed } : user
+      )
+    );
   };
 
-  const renderSearchResult = ({ item }: { item: User }) => (
-    <View style={styles.resultItem}>
-      <TouchableOpacity
-        style={styles.nameContainer}
-        onPress={() => handleUserPress(item)}
-      >
-        <Text style={styles.resultName}>{`${item.firstName} ${item.lastName}`}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.followButton, item.isFollowed && styles.unfollowButton]}
-        onPress={() => handleFollowUnfollowUser(item.id, item.isFollowed)}
-      >
-        <Text style={styles.followButtonText}>
-          {item?.isFollowed ? 'Unfollow' : 'Follow'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderSearchResult = ({ item }: { item: User }) => {
+    const latestUserData = getLatestUserData(item.id) || item;
+    return (
+      <View style={styles.resultItem}>
+        <TouchableOpacity
+          style={styles.nameContainer}
+          onPress={() => handleUserPress(latestUserData)}
+        >
+          <Text style={styles.resultName}>{`${latestUserData.firstName} ${latestUserData.lastName}`}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.followButton, latestUserData.isFollowed ? styles.unfollowButton : null]}
+          onPress={() => handleFollowUnfollowUser(latestUserData.id, latestUserData.isFollowed || false)}
+        >
+          <Text style={styles.followButtonText}>
+            {latestUserData.isFollowed ? 'Unfollow' : 'Follow'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
