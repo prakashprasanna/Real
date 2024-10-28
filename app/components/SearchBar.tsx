@@ -123,6 +123,18 @@ const SearchBar: React.FC<SearchBarProps> = ({ users, onFollowUnfollow, getLates
       </View>
       {showResults && (
         <View style={styles.resultsContainer}>
+          <View style={styles.resultsHeader}>
+            <Text style={styles.resultsTitle}>Search Results</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                setShowResults(false);
+                setSearchQuery('');
+              }}
+              style={styles.closeButton}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
           <FlatList
             data={searchResults}
             renderItem={renderSearchResult}
@@ -203,6 +215,23 @@ const styles = StyleSheet.create({
   },
   followedButton: {
     backgroundColor: '#ccc',
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  resultsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 5,
   },
 });
 
