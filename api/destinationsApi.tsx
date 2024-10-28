@@ -33,6 +33,11 @@ export interface User {
   isFollowed?: boolean;
 }
 
+export interface FollowData {
+  followers: User[];
+  following: User[];
+}
+
 
 let hasFetchedUsers = false;
 let cachedUsers: User[] = [];
@@ -423,3 +428,66 @@ export const checkIfFollowing = async (userId: string): Promise<boolean> => {
   return following.includes(userId);
 };
 
+export const fetchFollowData = async (): Promise<FollowData> => {
+  if (!auth.currentUser) {
+    throw new Error('No authenticated user');
+  }
+
+  try {
+    // Get current user document
+    const currentUserDoc = await getDoc(doc(firestore, 'users', auth.currentUser.uid));
+    if (!currentUserDoc.exists()) {
+      throw new Error('Current user document not found');
+    }
+
+    const userData = currentUserDoc.data();
+    const followingIds = userData.following || [];
+    const followerIds = userData.followers || [];
+
+    console.log('Found following IDs:', followingIds);
+    console.log('Found follower IDs:', followerIds);
+
+    // Fetch user details for followers
+    const followersUsers = followerIds.length > 0 ? await fetchUsersByIds(followerIds) : [];
+    console.log('Fetched followers:', followersUsers);
+    
+    // Fetch user details for following
+    const followingUsers = followingIds.length > 0 ? await fetchUsersByIds(followingIds) : [];
+    console.log('Fetched following:', followingUsers);
+
+    return {
+      followers: followersUsers,
+      following: followingUsers
+    };
+  } catch (error) {
+    console.error('Error fetching follow data:', error);
+    throw error;
+  }
+};
+
+const fetchUsersByIds = async (userIds: string[]): Promise<User[]> => {
+  try {
+    // Fetch users in batches of 10 (Firestore limitation for 'in' queries)
+    const users: User[] = [];
+    for (let i = 0; i < userIds.length; i += 10) {
+      const batch = userIds.slice(i, i + 10);
+      const usersQuery = query(
+        collection(firestore, 'users'),
+        where(documentId(), 'in', batch)
+      );
+      const usersSnapshot = await getDocs(usersQuery);
+      const batchUsers = usersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        firstName: doc.data().firstName,
+        lastName: doc.data().lastName,
+        profileImageUrl: doc.data().profileImageUrl,
+        isFollowed: true
+      }));
+      users.push(...batchUsers);
+    }
+    return users;
+  } catch (error) {
+    console.error('Error fetching users by IDs:', error);
+    return [];
+  }
+};
