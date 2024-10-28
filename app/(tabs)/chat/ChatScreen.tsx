@@ -20,6 +20,7 @@ interface Message {
   text: string;
   senderId: string;
   timestamp: any;
+  senderName?: string;
 }
 
 export default function ChatScreen() {
@@ -117,10 +118,17 @@ useEffect(() => {
   markMessagesAsRead();
 }, [userId]); // Run when entering a chat with a specific user
 
-  const renderMessage = ({ item }: { item: Message }) => {
-    const isCurrentUser = item.senderId === auth.currentUser?.uid;
+const renderMessage = ({ item }: { item: Message }) => {
+  const isCurrentUser = item.senderId === auth.currentUser?.uid;
 
-    return (
+  return (
+    <View style={styles.messageWrapper}>
+      <Text style={[
+        styles.senderName,
+        isCurrentUser ? styles.currentUserName : styles.otherUserName
+      ]}>
+        {isCurrentUser ? 'You' : userName}
+      </Text>
       <View style={[
         styles.messageContainer,
         isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage
@@ -132,8 +140,9 @@ useEffect(() => {
           {item.text}
         </Text>
       </View>
-    );
-  };
+    </View>
+  );
+};
 
   return (
     <>
@@ -238,5 +247,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: 44,
+  },
+  messageWrapper: {
+    marginVertical: 5,
+    marginHorizontal: 10,
+    maxWidth: '80%',
+  },
+  senderName: {
+    fontSize: 12,
+    marginBottom: 2,
+    marginLeft: 10,
+  },
+  currentUserName: {
+    color: '#6bb2be',
+    alignSelf: 'flex-end',
+    marginRight: 10,
+  },
+  otherUserName: {
+    color: '#666',
   },
 });
