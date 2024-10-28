@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     marginBottom: 10,
     marginLeft: 10,
-    height: Platform.OS === 'ios' ? undefined : 35,
+    height:  35,
   },
   filterButton: {
     paddingHorizontal: 16,

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import SearchBar from './SearchBar';
 import UsersList from './UsersList';
 import { User, fetchUsers, followUser, unfollowUser } from '../../api/destinationsApi';
@@ -45,7 +45,7 @@ const UsersContainer: React.FC = () => {
   }, [users]);
   
   return (
-    <View style={{ height: '45%'}}>
+    <View style={{ height: Platform.OS === 'ios' ? '40%' : '45%'}}>
       <SearchBar 
         users={users} 
         onFollowUnfollow={handleFollowUnfollow} 
