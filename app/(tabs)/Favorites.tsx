@@ -76,8 +76,13 @@ export default function FavoritesScreen() {
         <TouchableOpacity 
           style={styles.iconButton}
           onPress={() => {
-            // Handle chat action
-            console.log('Chat with:', item.firstName);
+            router.push({
+              pathname: '/(tabs)/chat/ChatScreen',
+              params: { 
+                userId: item.id,
+                userName: `${item.firstName} ${item.lastName}`
+              }
+            });
           }}
         >
           <Ionicons name="chatbubble-outline" size={24} color="#6bb2be" />

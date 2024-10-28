@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '@/hooks/useCart';
@@ -7,7 +7,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchVideos } from '@/api/destinationsApi';
 import { setVideos, setLoading } from '@/Redux/videosSlice';
 import { RootState } from '@/Redux/store';
-import { auth } from '@/firebaseConfig';
+import { auth, firestore } from '@/firebaseConfig';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+
 const REFRESH_INTERVAL = 1 * 60 * 1000; // 1 minute
 
 export default function TabLayout() {
@@ -18,6 +20,31 @@ export default function TabLayout() {
   const videos = useSelector((state: RootState) => state.videos.videos);
   const isLoading = useSelector((state: RootState) => state.videos.isLoading);
   const userId = auth.currentUser?.uid;
+  const [totalUnread, setTotalUnread] = useState(0);
+
+  // Add unread messages counter
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const chatsRef = collection(firestore, 'chats');
+    const userChatsQuery = query(
+      chatsRef,
+      where('participants', 'array-contains', auth.currentUser.uid)
+    );
+
+    const unsubscribe = onSnapshot(userChatsQuery, (snapshot) => {
+      let count = 0;
+      snapshot.docs.forEach(doc => {
+        const chatData = doc.data();
+        if (auth.currentUser?.uid && chatData.unreadMessages) {
+          count += chatData.unreadMessages[auth.currentUser.uid] || 0;
+        }
+      });
+      setTotalUnread(count);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const fetchVideosIfNeeded = useCallback(async () => {
     const userId = auth.currentUser?.uid;
@@ -114,6 +141,8 @@ export default function TabLayout() {
         options={{
           title: 'Inbox',
           tabBarIcon: ({ color }) => <Ionicons name="mail" size={24} color={'#fff'} />,
+          tabBarBadge: totalUnread > 0 ? totalUnread : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#ff4444' }
         }}
       />
       <Tabs.Screen
@@ -135,6 +164,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen name="explore/SwipeableVideoFeedScreen" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="EditProfile" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="chat/ChatScreen" options={{ href: null, headerShown: true }} />
     </Tabs>
   );
 }

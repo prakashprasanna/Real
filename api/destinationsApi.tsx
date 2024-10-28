@@ -38,6 +38,16 @@ export interface FollowData {
   following: User[];
 }
 
+export interface ChatPreview {
+  id: string;
+  lastMessage: string;
+  timestamp: Date;
+  otherUserId: string;
+  otherUserName: string;
+  otherUserImage: string;
+  unreadCount: number;
+}
+
 
 let hasFetchedUsers = false;
 let cachedUsers: User[] = [];
@@ -488,6 +498,62 @@ const fetchUsersByIds = async (userIds: string[]): Promise<User[]> => {
     return users;
   } catch (error) {
     console.error('Error fetching users by IDs:', error);
+    return [];
+  }
+};
+
+export const fetchChatPreviews = async (): Promise<ChatPreview[]> => {
+  if (!auth.currentUser) return [];
+
+  try {
+    const chatsRef = collection(firestore, 'chats');
+    let userChatsQuery = query(
+      chatsRef,
+      where('participants', 'array-contains', auth.currentUser.uid)
+    );
+
+    const chatsSnapshot = await getDocs(userChatsQuery);
+    const chatPreviews: ChatPreview[] = [];
+
+    for (const chatDoc of chatsSnapshot.docs) {
+      const chatData = chatDoc.data();
+      
+      if (!chatData.lastMessageTimestamp) continue;
+
+      const otherUserId = chatData.participants.find(
+        (id: string) => id !== auth.currentUser?.uid
+      );
+
+      if (otherUserId) {
+        try {
+          const userRef = doc(firestore, 'users', otherUserId);
+          const userSnap = await getDoc(userRef);
+          
+          // Get unread count
+          const unreadCount = chatData.unreadMessages?.[auth.currentUser.uid] || 0;
+          
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            chatPreviews.push({
+              id: chatDoc.id,
+              lastMessage: chatData.lastMessage || 'No messages yet',
+              timestamp: chatData.lastMessageTimestamp?.toDate() || new Date(),
+              otherUserId: otherUserId,
+              otherUserName: `${userData.firstName} ${userData.lastName}`,
+              otherUserImage: userData.profileImageUrl || '',
+              unreadCount
+            });
+          }
+        } catch (userError) {
+          console.error('Error fetching user data:', userError);
+          continue;
+        }
+      }
+    }
+
+    return chatPreviews.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  } catch (error) {
+    console.error('Error fetching chat previews:', error);
     return [];
   }
 };

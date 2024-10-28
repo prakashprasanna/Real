@@ -1,53 +1,100 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, FlatList, Image } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
-
-interface Purchase {
-  id: string;
-  amount: number;
-  date: string;
-  description: string;
-  imageUrl: string;
-}
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, View, Text, FlatList, Image, TouchableOpacity } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ChatPreview, fetchChatPreviews } from '../../api/destinationsApi';
 
 export default function Inbox() {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [chats, setChats] = useState<ChatPreview[]>([]);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const loadChats = useCallback(async () => {
+    setLoading(true);
+    try {
+      const chatPreviews = await fetchChatPreviews();
+      setChats(chatPreviews);
+    } catch (error) {
+      console.error('Error loading chats:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-    const loadPurchases = async () => {
-      try {
-        const storedPurchases = await AsyncStorage.getItem('purchases');
-        if (storedPurchases) {
-          setPurchases(JSON.parse(storedPurchases));
-        }
-      } catch (error) {
-        console.error('Error loading purchases:', error);
-      }
-    };
-    loadPurchases();
-  }, [])
-);
+      loadChats();
+    }, [loadChats])
+  );
 
-  const renderItem = ({ item }: { item: Purchase }) => (
-    <View style={styles.item}>
-      <Image source={{ uri: item.imageUrl }} style={styles.image} />
-      <View style={styles.itemDetails}>
-        <Text style={styles.description}>{item.description}</Text>
-        <Text style={styles.amount}>${(item.amount / 100).toFixed(2)}</Text>
-        <Text style={styles.date}>{new Date(item.date).toLocaleDateString()}</Text>
+  const formatTimestamp = (timestamp: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - timestamp.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) {
+      return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (days === 1) {
+      return 'Yesterday';
+    } else if (days < 7) {
+      return timestamp.toLocaleDateString([], { weekday: 'long' });
+    } else {
+      return timestamp.toLocaleDateString();
+    }
+  };
+
+  const renderChat = ({ item }: { item: ChatPreview }) => (
+    <TouchableOpacity
+      style={styles.chatItem}
+      onPress={() => {
+        router.push({
+          pathname: '/(tabs)/chat/ChatScreen',
+          params: {
+            userId: item.otherUserId,
+            userName: item.otherUserName,
+            chatId: item.id
+          }
+        });
+      }}
+    >
+      <View style={styles.avatarContainer}>
+        <Image source={{ uri: item.otherUserImage }} style={styles.avatar} />
+        {item.unreadCount > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadText}>
+              {item.unreadCount > 99 ? '99+' : item.unreadCount}
+            </Text>
+          </View>
+        )}
       </View>
-    </View>
+      <View style={styles.chatDetails}>
+        <View style={styles.chatHeader}>
+          <Text style={styles.userName}>{item.otherUserName}</Text>
+          <Text style={styles.timestamp}>{formatTimestamp(item.timestamp)}</Text>
+        </View>
+        <Text 
+          style={[
+            styles.lastMessage, 
+            item.unreadCount > 0 && styles.unreadMessage
+          ]} 
+          numberOfLines={1}
+        >
+          {item.lastMessage}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={purchases}
-        renderItem={renderItem}
+        data={chats}
+        renderItem={renderChat}
         keyExtractor={item => item.id}
-        ListEmptyComponent={<Text>No purchases yet</Text>}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>
+            {loading ? 'Loading...' : 'No conversations yet'}
+          </Text>
+        }
       />
     </View>
   );
@@ -56,32 +103,74 @@ export default function Inbox() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 10,
+    backgroundColor: '#fff',
   },
-  item: {
+  chatItem: {
     flexDirection: 'row',
-    padding: 10,
+    padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: '#eee',
+    alignItems: 'center',
   },
-  image: {
+  avatar: {
     width: 50,
     height: 50,
-    marginRight: 10,
+    borderRadius: 25,
+    marginRight: 15,
   },
-  itemDetails: {
+  chatDetails: {
     flex: 1,
   },
-  description: {
+  chatHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  userName: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
-  amount: {
-    fontSize: 14,
-    color: 'green',
-  },
-  date: {
+  timestamp: {
     fontSize: 12,
-    color: 'gray',
+    color: '#666',
+  },
+  lastMessage: {
+    fontSize: 14,
+    color: '#666',
+    marginRight: 50,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 50,
+    fontSize: 16,
+    color: '#666',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 15,
+  },
+  unreadBadge: {
+    position: 'absolute',
+    right: -5,
+    top: -5,
+    backgroundColor: '#6bb2be',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  unreadText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 6,
+  },
+  unreadMessage: {
+    fontWeight: '600',
+    color: '#000',
   },
 });
