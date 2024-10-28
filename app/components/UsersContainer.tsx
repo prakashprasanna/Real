@@ -6,6 +6,7 @@ import { User, fetchUsers, followUser, unfollowUser } from '../../api/destinatio
 
 const UsersContainer: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Add this state
 
   const loadUsers = useCallback(async (page: number, pageSize: number, onlyFollowing: boolean) => {
     console.log(`[UsersContainer] Fetching users. Page: ${page}, PageSize: ${pageSize}, OnlyFollowing: ${onlyFollowing}`);
@@ -19,9 +20,10 @@ const UsersContainer: React.FC = () => {
     }
   }, []);
 
+  // Update this useEffect to depend on refreshTrigger
   useEffect(() => {
     loadUsers(1, 10, true).then(setUsers);
-  }, [loadUsers]);
+  }, [loadUsers, refreshTrigger]);
 
   const handleFollowUnfollow = useCallback(async (userId: string, isFollowed: boolean) => {
     try {
@@ -30,11 +32,8 @@ const UsersContainer: React.FC = () => {
       } else {
         await followUser(userId);
       }
-      setUsers(prevUsers =>
-        prevUsers.map(user =>
-          user.id === userId ? { ...user, isFollowed: !isFollowed } : user
-        )
-      );
+      // Trigger a refresh after follow/unfollow
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error(`Error ${isFollowed ? 'unfollowing' : 'following'} user:`, error);
     }
@@ -57,6 +56,7 @@ const UsersContainer: React.FC = () => {
         setUsers={setUsers} 
         onFollowUnfollow={handleFollowUnfollow} 
         loadUsers={loadUsers}
+        key={refreshTrigger} // Add this to force re-render
       />
     </View>
   );

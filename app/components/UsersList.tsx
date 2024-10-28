@@ -116,12 +116,16 @@ export default function UsersList({
   };
 
   const handleFollowUnfollow = async (userId: string, isFollowed: boolean) => {
-    await onFollowUnfollow(userId, isFollowed);
-    setUsers(prevUsers =>
-      prevUsers.map(user =>
-        user.id === userId ? { ...user, isFollowed: !isFollowed } : user
-      )
-    );
+    try {
+      await onFollowUnfollow(userId, isFollowed);
+      // Reset the list and reload
+      setUsers([]);
+      setPage(1);
+      setHasMore(true);
+      await loadMoreUsers();
+    } catch (error) {
+      console.error('[UsersList] Error in follow/unfollow:', error);
+    }
   };
   
   const renderDestinationItem = ({ item }: { item: User }) => (

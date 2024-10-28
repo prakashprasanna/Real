@@ -68,22 +68,17 @@ const SearchBar: React.FC<SearchBarProps> = ({ users, onFollowUnfollow, getLates
   };
 
   const handleFollowUnfollowUser = async (userId: string, isFollowed: boolean) => {
-    await onFollowUnfollow(userId, isFollowed);
-    setUsers(prevUsers =>
-      prevUsers.map(user =>
-        user.id === userId ? { ...user, isFollowed: !isFollowed } : user
-      )
-    );
-    setSearchResults(prevResults =>
-      prevResults.map(user =>
-        user.id === userId ? { ...user, isFollowed: !isFollowed } : user
-      )
-    );
-    setAllUsers(prevUsers =>
-      prevUsers.map(user =>
-        user.id === userId ? { ...user, isFollowed: !isFollowed } : user
-      )
-    );
+    try {
+      await onFollowUnfollow(userId, isFollowed);
+      // Refetch all users to get updated data
+      await fetchAllUsers();
+      // Re-run search to update results
+      if (searchQuery.length > 2) {
+        handleSearch(searchQuery);
+      }
+    } catch (error) {
+      console.error('[SearchBar] Error in follow/unfollow:', error);
+    }
   };
 
   const renderSearchResult = ({ item }: { item: User }) => {
