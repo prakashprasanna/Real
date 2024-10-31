@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
@@ -15,6 +15,8 @@ import { useDispatch } from 'react-redux';
 import { setLoading, setVideos } from '@/Redux/videosSlice';
 import { fetchVideos } from '@/api/destinationsApi';
 import { Asset } from 'expo-asset';
+import { Camera, useCameraDevices } from 'react-native-vision-camera';
+import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 
 setLogLevel('error');
 
@@ -30,6 +32,14 @@ export function PickAndUploadVideo() {
   const [videoError, setVideoError] = useState<string | null>(null);
   const [overallProgress, setOverallProgress] = useState(0);
   const [localVideoUri, setLocalVideoUri] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [cameraPermission, setCameraPermission] = useState<boolean>(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [recordingTimer, setRecordingTimer] = useState(10);
+  
+  const camera = useRef<Camera>(null);
+  const devices = useCameraDevices();
+  const device = devices[0]; 
 
   const videoRef = useRef<Video>(null);
   const router = useRouter();
@@ -37,6 +47,82 @@ export function PickAndUploadVideo() {
 
   const storage = getStorage();
   const auth = getAuth();
+
+  useEffect(() => {
+    checkPermissions();
+  }, []);
+
+  const checkPermissions = async () => {
+    const cameraPermission = await Camera.requestCameraPermission();
+    const microphonePermission = await Camera.requestMicrophonePermission();
+    setCameraPermission(
+      cameraPermission === 'granted' && microphonePermission === 'granted'
+    );
+  };
+
+  const startRecording = async () => {
+    if (!camera.current) return;
+    
+    setIsRecording(true);
+    setRecordingTimer(10);
+    
+    try {
+      const video = await camera.current.startRecording({
+        flash: 'off',
+        onRecordingFinished: (video) => {
+          console.log('Recording finished:', video);
+          processRecordedVideo(video.path);
+        },
+        onRecordingError: (error) => {
+          console.error('Recording error:', error);
+          Alert.alert('Error', 'Failed to record video');
+        },
+      });
+      
+      // Start countdown timer
+      const timer = setInterval(() => {
+        setRecordingTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            stopRecording();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!camera.current) return;
+    
+    try {
+      await camera.current.stopRecording();
+      setIsRecording(false);
+      setShowCamera(false);
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+    }
+  };
+
+  const processRecordedVideo = async (videoPath: string) => {
+    try {
+      // Save to camera roll
+      await CameraRoll.save(`file://${videoPath}`, {
+        type: 'video',
+      });
+      
+      // Set the video for preview
+      setVideo(`file://${videoPath}`);
+      setLocalVideoUri(`file://${videoPath}`);
+    } catch (error) {
+      console.error('Error processing recorded video:', error);
+      Alert.alert('Error', 'Failed to process recorded video');
+    }
+  };
 
   const copyVideoToLocalUri = async (uri: string): Promise<string> => {
     const fileInfo = await FileSystem.getInfoAsync(uri);
@@ -562,6 +648,40 @@ export function PickAndUploadVideo() {
     }
   };
 
+  if (showCamera && device) {
+    return (
+      <View style={styles.container}>
+        <Camera
+          ref={camera}
+          style={StyleSheet.absoluteFill}
+          device={device}
+          isActive={true}
+          video={true}
+          audio={true}
+        />
+        <View style={styles.cameraOverlay}>
+          {isRecording && (
+            <View style={styles.timerContainer}>
+              <Text style={styles.timerText}>{recordingTimer}s</Text>
+            </View>
+          )}
+          <TouchableOpacity
+            style={[styles.recordButton, isRecording && styles.recordingButton]}
+            onPress={isRecording ? stopRecording : startRecording}
+          >
+            <View style={styles.recordButtonInner} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setShowCamera(false)}
+          >
+            <Text style={styles.closeButtonText}>×</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {isCheckingFileSize && (
@@ -616,13 +736,20 @@ export function PickAndUploadVideo() {
         </View>
       )}
   
-      <View style={styles.buttonContainer}>
+  <View style={styles.buttonContainer}>
         <TouchableOpacity 
           style={[styles.button, isCheckingFileSize && styles.disabledButton]} 
           onPress={pickVideo}
           disabled={isCheckingFileSize}
         >
           <Text style={styles.buttonText}>Pick Video</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.button, !cameraPermission && styles.disabledButton]} 
+          onPress={() => setShowCamera(true)}
+          disabled={!cameraPermission}
+        >
+          <Text style={styles.buttonText}>Use Camera</Text>
         </TouchableOpacity>
         {video && (
           <TouchableOpacity 
@@ -727,5 +854,55 @@ const styles = StyleSheet.create({
     color: 'red',
     textAlign: 'center',
     marginTop: 10,
+  },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: 20,
+  },
+  recordButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  recordingButton: {
+    backgroundColor: 'red',
+  },
+  recordButtonInner: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'red',
+  },
+  timerContainer: {
+    position: 'absolute',
+    top: 40,
+    alignSelf: 'center',
+  },
+  timerText: {
+    fontSize: 40,
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });

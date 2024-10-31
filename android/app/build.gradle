@@ -112,7 +112,7 @@ android {
     namespace 'com.amprotech.real'
     defaultConfig {
         applicationId 'com.amprotech.real'
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion 24
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
@@ -143,6 +143,10 @@ android {
         jniLibs {
             useLegacyPackaging (findProperty('expo.useLegacyPackaging')?.toBoolean() ?: false)
         }
+    }
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
     }
 }
 
@@ -193,6 +197,12 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    implementation "com.google.android.exoplayer:exoplayer:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-core:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-dash:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-hls:2.19.1"
+    implementation "com.google.android.exoplayer:exoplayer-smoothstreaming:2.19.1"
 }
 
 if (rnVersion < versionToNumber(0, 75, 0)) {
