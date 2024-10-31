@@ -156,8 +156,12 @@ export function PickAndUploadVideo() {
   };
 
   const pickVideo = async () => {
+    setVideo(null);
+    setLocalVideoUri(null);
+    setVideoError(null);
     setUploadProgress(0);
     setCompressionProgress(0);
+    setOverallProgress(0);
     setIsCheckingFileSize(true);
     setVideoError(null);
     try {
@@ -648,6 +652,15 @@ export function PickAndUploadVideo() {
     }
   };
 
+  const clearVideo = () => {
+    setVideo(null);
+    setLocalVideoUri(null);
+    setVideoError(null);
+    setUploadProgress(0);
+    setCompressionProgress(0);
+    setOverallProgress(0);
+  };
+
   if (showCamera && device) {
     return (
       <View style={styles.container}>
@@ -705,6 +718,12 @@ export function PickAndUploadVideo() {
               setVideoError('Error playing the video. The file may be corrupted or in an unsupported format.');
             }}
           />
+                  <TouchableOpacity 
+          style={styles.clearVideoButton}
+          onPress={clearVideo}
+        >
+          <Text style={styles.clearVideoText}>×</Text>
+        </TouchableOpacity>
           {videoError && (
             <Text style={styles.errorText}>{videoError}</Text>
           )}
@@ -747,7 +766,15 @@ export function PickAndUploadVideo() {
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.button, !cameraPermission && styles.disabledButton]} 
-            onPress={() => setShowCamera(true)}
+            onPress={() => {
+              setVideo(null);
+              setLocalVideoUri(null);
+              setVideoError(null);
+              setUploadProgress(0);
+              setCompressionProgress(0);
+              setOverallProgress(0);
+              setShowCamera(true);
+            }}
             disabled={!cameraPermission}
           >
             <Text style={styles.buttonText}>Use Camera</Text>
@@ -927,5 +954,23 @@ const styles = StyleSheet.create({
   buttonsWrapper: {
     width: '100%',
     gap: 15,
+  },
+  clearVideoButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+
+  clearVideoText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
 });
