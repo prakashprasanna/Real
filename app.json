@@ -17,7 +17,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to take photos and videos.",
         "NSPhotoLibraryUsageDescription": "This app accesses your photos to let you share them with your friends."
-      }
+      },
+      "bundleIdentifier": "com.amprotech.real"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,11 +26,13 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "INTERNET"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.amprotech.real"
     },
     "web": {
       "bundler": "metro",
