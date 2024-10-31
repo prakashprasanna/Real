@@ -736,31 +736,36 @@ export function PickAndUploadVideo() {
         </View>
       )}
   
-  <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={[styles.button, isCheckingFileSize && styles.disabledButton]} 
-          onPress={pickVideo}
-          disabled={isCheckingFileSize}
-        >
-          <Text style={styles.buttonText}>Pick Video</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.button, !cameraPermission && styles.disabledButton]} 
-          onPress={() => setShowCamera(true)}
-          disabled={!cameraPermission}
-        >
-          <Text style={styles.buttonText}>Use Camera</Text>
-        </TouchableOpacity>
-        {video && (
+      <View style={styles.buttonsWrapper}>
+        <View style={styles.buttonContainer}>
           <TouchableOpacity 
-            style={[styles.button, (isCompressing || isUploading) && styles.disabledButton]} 
-            onPress={() => handleUpload(video)}
-            disabled={isCompressing || isUploading}
+            style={[styles.button, isCheckingFileSize && styles.disabledButton]} 
+            onPress={pickVideo}
+            disabled={isCheckingFileSize}
           >
-            <Text style={styles.buttonText}>
-              {isCompressing ? 'Compressing...' : isUploading ? 'Uploading...' : 'Upload Video'}
-            </Text>
+            <Text style={styles.buttonText}>Pick Video</Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.button, !cameraPermission && styles.disabledButton]} 
+            onPress={() => setShowCamera(true)}
+            disabled={!cameraPermission}
+          >
+            <Text style={styles.buttonText}>Use Camera</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {video && (
+          <View style={styles.uploadButtonContainer}>
+            <TouchableOpacity 
+              style={[styles.uploadButton, (isCompressing || isUploading) && styles.disabledButton]} 
+              onPress={() => handleUpload(video)}
+              disabled={isCompressing || isUploading}
+            >
+              <Text style={styles.buttonText}>
+                {isCompressing ? 'Compressing...' : isUploading ? 'Uploading...' : 'Upload Video'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     </View>
@@ -829,6 +834,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 5,
     elevation: 2,
+    minWidth: 120,
+  },
+  uploadButtonContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  uploadButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 36,
+    borderRadius: 5,
+    elevation: 2,
+    minWidth: 200,
   },
   buttonText: {
     color: '#fff',
@@ -904,5 +923,9 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  buttonsWrapper: {
+    width: '100%',
+    gap: 15,
   },
 });
