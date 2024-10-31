@@ -10,10 +10,19 @@
     },
     "preview": {
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "developmentClient": false,
+        "distribution": "internal",
+        "gradleCommand": ":app:assembleRelease" 
       }
     },
     "production": {
+      "android": {
+        "buildType": "apk",
+        "developmentClient": false,
+        "distribution": "store",
+        "gradleCommand": ":app:assembleRelease"
+      },
       "autoIncrement": true
     }
   },
